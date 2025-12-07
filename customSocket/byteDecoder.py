@@ -1,6 +1,9 @@
+import hashlib
+from typing import Tuple
+
 from customSocket.models import Header, AckMessage, HelloMessage, GoodbyeMessage, HeartbeatMessage, NoAckMessage, \
     NoAckPayload, MsgPayload, MsgMessage, FileChunkMessage, FileChunkPayload, FileInfoPayload, FileInfoMessage, \
-    RoutingUpdateMessage, RoutingUpdatePayload, RoutingEntry
+    RoutingUpdateMessage, RoutingUpdatePayload, RoutingEntry, AnyMessage
 
 
 def parseHeader(h) -> Header:
@@ -93,61 +96,65 @@ def parseRoutingUpdate(payload) -> RoutingUpdatePayload:
         entries=routingEntries
     )
 
-def parsePayload(udpPayload):
+# This MEthod return a Strucutred Output depending on the Message Type -> models
+
+def encodePayload(udpPayload) -> Tuple[AnyMessage, bool]:
     header = parseHeader(udpPayload[0: 61])
 
     payload = udpPayload [61 : 61 + header.payload_length]
+
+    correctData = header.checksum == hashlib.sha256(payload).digest()
 
 
     match header.type:
         case 1:
             return AckMessage(
                 header=header
-            )
+            ), correctData
 
         case 2:
             return NoAckMessage(
                 header=header,
                 payload=parseNoAck(payload)
-            )
+            ), correctData
 
         case 3:
             return HelloMessage(
                 header=header
-            )
+            ), correctData
 
         case 4:
             return GoodbyeMessage(
                 header=header
-            )
+            ), correctData
         case 5:
             return MsgMessage(
                 header=header,
                 payload=parseMsg(payload, header.payload_length)
-            )
+            ), correctData
 
         case 6:
             return FileChunkMessage(
                 header=header,
                 payload=parseFileChunk(payload, header.payload_length)
-            )
+            ), correctData
 
         case 7:
             return FileInfoMessage(
                 header=header,
                 payload=parseFileInfo(payload, header.payload_length)
-                )
+            ), correctData
 
         case 8:
             return HeartbeatMessage(
                 header=header
-            )
+            ), correctData
 
         case 9:
             return RoutingUpdateMessage(
                 header=header,
                 payload=parseRoutingUpdate(payload)
-            )
+            ), correctData
 
     raise ValueError("Unknown message type")
 
