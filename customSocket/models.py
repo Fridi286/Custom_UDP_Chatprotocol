@@ -88,9 +88,7 @@ class FileChunkPayload(BaseModel):
 
 # --- Typ 0x07 FILE_INFO ---
 class FileInfoPayload(BaseModel):
-    total_chunks: int
-    filenameLength: int
-    filename: str
+    filename: str   # UTF-8 string
 
 
 # --- Typ 0x08 HEARTBEAT ---

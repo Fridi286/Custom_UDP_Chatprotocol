@@ -1,9 +1,6 @@
-from typing import List
-
-from annotated_types.test_cases import cases
-
 from customSocket.models import Header, AckMessage, HelloMessage, GoodbyeMessage, HeartbeatMessage, NoAckMessage, \
-    NoAckPayload
+    NoAckPayload, MsgPayload, MsgMessage, FileChunkMessage, FileChunkPayload, FileInfoPayload, FileInfoMessage, \
+    RoutingUpdateMessage, RoutingUpdatePayload, RoutingEntry
 
 
 def parseHeader(h) -> Header:
@@ -59,14 +56,42 @@ def parseNoAck(payload) -> NoAckPayload:
     )
 
 
-def parseMsg():
-    return #TODO
-def parseFileChunk():
-    return #TODO
-def parseFileInfo():
-    return #TODO
-def parseRoutingUpdate():
-    return #TODO
+def parseMsg(payload, length) -> MsgPayload:
+    textBytes = payload[0 : length]
+    return MsgPayload(
+        text=textBytes.decode('utf-8')
+    )
+
+def parseFileChunk(payload, length) -> FileChunkPayload:
+    return FileChunkPayload(
+        data=payload[0 : length]
+    )
+
+def parseFileInfo(payload, length) -> FileInfoPayload:
+    filename = payload[0: length]
+    return FileInfoPayload(
+        filename=filename.decode('utf-8')
+    )
+
+def parseRoutingUpdate(payload) -> RoutingUpdatePayload:
+    entryCount = int.from_bytes(payload[0 : 2], "big")
+    routingEntries = []
+
+    offset = 2
+
+    for i in range(entryCount):
+        routingEntries.append(
+            RoutingEntry(
+                dest_ip=int.from_bytes(payload[offset : offset+4], "big"),
+                dest_port=int.from_bytes(payload[offset+4 : offset+6], "big"),
+                distance=int.from_bytes(payload[offset+6 : offset+7], "big")
+            )
+        )
+
+        offset += 7
+    return RoutingUpdatePayload(
+        entries=routingEntries
+    )
 
 def parsePayload(udpPayload):
     header = parseHeader(udpPayload[0: 61])
@@ -96,13 +121,22 @@ def parsePayload(udpPayload):
                 header=header
             )
         case 5:
-            return parseMsg()
+            return MsgMessage(
+                header=header,
+                payload=parseMsg(payload, header.payload_length)
+            )
 
         case 6:
-            return parseFileChunk()
+            return FileChunkMessage(
+                header=header,
+                payload=parseFileChunk(payload, header.payload_length)
+            )
 
         case 7:
-            return parseFileInfo()
+            return FileInfoMessage(
+                header=header,
+                payload=parseFileInfo(payload, header.payload_length)
+                )
 
         case 8:
             return HeartbeatMessage(
@@ -110,7 +144,10 @@ def parsePayload(udpPayload):
             )
 
         case 9:
-            return parseRoutingUpdate()
+            return RoutingUpdateMessage(
+                header=header,
+                payload=parseRoutingUpdate(payload)
+            )
 
     raise ValueError("Unknown message type")
 
