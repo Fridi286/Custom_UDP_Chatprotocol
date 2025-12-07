@@ -98,10 +98,10 @@ def parseRoutingUpdate(payload) -> RoutingUpdatePayload:
 
 # This MEthod return a Strucutred Output depending on the Message Type -> models
 
-def encodePayload(udpPayload) -> Tuple[AnyMessage, bool]:
-    header = parseHeader(udpPayload[0: 61])
+def decodePayload(udpPayload) -> Tuple[AnyMessage, bool]:
+    header = parseHeader(udpPayload[0: 62])
 
-    payload = udpPayload [61 : 61 + header.payload_length]
+    payload = udpPayload [62 : 62 + header.payload_length]
 
     correctData = header.checksum == hashlib.sha256(payload).digest()
 

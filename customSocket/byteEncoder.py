@@ -1,5 +1,4 @@
 import hashlib
-from codecs import ignore_errors
 
 from customSocket.models import AnyMessage, Header, NoAckPayload, MsgPayload, FileChunkPayload, FileInfoPayload, \
     RoutingUpdatePayload
@@ -28,7 +27,8 @@ def encodeNoAck(payload: NoAckPayload) -> bytes:
     sequenceNumber = payload.sequence_number.to_bytes(4, "big")
     missingCount = len(payload.missing_chunks).to_bytes(2, "big")
     missingChunks = bytes(0)
-    for _,i in payload.missing_chunks:
+    # payload.missing_chunks is a list of ints
+    for i in payload.missing_chunks:
         missingChunks += i.to_bytes(4, "big")
 
     return sequenceNumber + missingCount + missingChunks
@@ -53,12 +53,15 @@ def encodeRoutingUpdate(payload: RoutingUpdatePayload) -> bytes:
 
     return data
 
+
+
+# This is the mthod used
 def encodePayload(message: AnyMessage) -> bytes:
 
     msgType = message.header.type
     payload = bytes(0)
 
-    match msgType.type:
+    match msgType:
         case 2:
             payload = encodeNoAck(message.payload)
         case 5:
