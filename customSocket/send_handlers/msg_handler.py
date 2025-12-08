@@ -1,6 +1,7 @@
 import ipaddress
+import time
 
-from customSocket import byteEncoder
+from customSocket import byteEncoder, config
 from customSocket.helpers.models import Header, MsgMessage, MsgPayload
 
 
@@ -39,6 +40,32 @@ def send_Text(
         )
     )
 
-    mySocket.send_queue.put((byteEncoder.encodePayload(data), (dest_ip, dest_port)))
-    print(f"\n[SENT to {dest_ip}:{dest_port}] {msg}")
-    return
+    encoded_data = (byteEncoder.encodePayload(data))
+
+    for _ in range(config.MAX_RETRIES):
+        if mySocket.ack_store.check_and_delete_ack(seq_num):
+            print(f"\n[SENT to {dest_ip}:{dest_port}] {msg}\n")
+            return True
+
+        mySocket.send_queue.put((encoded_data, (dest_ip, dest_port)))
+
+        last_event_time = time.time()
+        while True:
+
+            # --------------- ACK angekommen? ---------------
+            if mySocket.ack_store.check_and_delete_ack(seq_num):
+                print(f"\n[Succ SENT to {dest_ip}:{dest_port}] {msg}\n")
+                return True
+            # --------------- NoAck angekommen? --------------
+            missing = mySocket.noack_store.get_and_delete_missing(seq_num)
+            if missing:
+                mySocket.send_queue.put((encoded_data, (dest_ip, dest_port)))
+                last_event_time = time.time()  # Timer reset
+                continue
+            # --------------- Timeout prüfen ------------------------
+            if time.time() - last_event_time >= 5:
+                break
+
+            time.sleep(0.01)
+
+    return False

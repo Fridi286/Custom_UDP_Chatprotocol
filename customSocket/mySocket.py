@@ -35,7 +35,7 @@ class MySocket:
 
         self.sock = socket(AF_INET, SOCK_DGRAM)
         self.sock.bind((host, port))
-        print(f"\n[INFO] Listening on {my_ip}:{my_port}")
+        print(f"\n[INFO] Listening on {my_ip}:{my_port}\n")
         #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 * 1024 * 1024)
 
         # self.send_queue = Queue() #OLD
@@ -111,7 +111,7 @@ class MySocket:
         queue_get = self.my_incoming.get
         while True:
             data = queue_get()
-            msgType = data[0:1]
+            msgType = int.from_bytes(data[0:1], "big")
             self.HANDLERS[msgType](self, data)
 
     # ---------- Handels data which is not for you and needs routing ---
@@ -129,9 +129,9 @@ class MySocket:
 
         while True:
             try:
-                dest_ip = input("Ziel-IP: ")
-                dest_port = int(input("Ziel-Port: "))
-                msg = input("Gib deine Nachricht ein (Wenn du eine Datei verschicken willst, gib \"Send Data\" ein): ")
+                dest_ip = input("\nZiel-IP: ")
+                dest_port = int(input("\nZiel-Port: "))
+                msg = input("\nGib deine Nachricht ein (Wenn du eine Datei verschicken willst, gib \"Send Data\" ein): ")
                 seqNum = self.get_seq_num()
                 if msg.upper() == "SEND DATA":
                     threading.Thread(target=file_handler.send_Data, args=(self, seqNum, msg, dest_ip, dest_port, self.my_ip, self.my_port), daemon=True).start()
@@ -139,6 +139,7 @@ class MySocket:
                     threading.Thread(target=msg_handler.send_Text, args=(self, seqNum, msg, dest_ip, dest_port, self.my_ip, self.my_port), daemon=True).start()
             except Exception as e:
                 print(e)
+            time.sleep(3)
 
     # ----------- Set Sequence Number ------------
     def get_seq_num(self):
