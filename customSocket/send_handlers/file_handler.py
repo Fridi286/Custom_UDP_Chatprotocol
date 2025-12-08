@@ -2,6 +2,7 @@ import ipaddress
 import math
 import os
 import time
+from typing import List
 
 from customSocket import byteEncoder, config
 from customSocket.helpers.models import AnyMessage, FileInfoMessage, Header, FileInfoPayload, FileChunkMessage, FileChunkPayload
@@ -107,18 +108,35 @@ def send_Data(
 # This Method handels the sending / resending / Ack and No_Ack Handling of one Frame
 # ====================================================================================================
 
-
 def send_frame(mySocket, frame, seq_num) -> bool:
-    tries = 0
-    delivered = False
+    for _ in range(config.MAX_RETRIES):
+        # 1. ACK schon da?
+        if mySocket.ack_store.check_and_delete_ack(seq_num):
+            return True
 
-    while not delivered:
+        # 2. Erstmal alle Chunks senden
         send_all_chunks(mySocket, frame)
-        time.sleep(config.FRAME_WAIT_TIME)
-        delivered = check_ACK(mySocket, seq_num)
 
+        # 3. Reset des Timers
+        last_event_time = time.time()
+        while True:
 
-    return True
+            # --------------- ACK angekommen? ---------------
+            if mySocket.ack_store.check_and_delete_ack(seq_num):
+                return True
+            # --------------- NoAck angekommen? --------------
+            missing = mySocket.noack_store.get_and_delete_missing(seq_num)
+            if missing:
+                send_missing_chunks(mySocket, frame, missing)
+                last_event_time = time.time()  # Timer reset
+                continue
+            # --------------- Timeout prüfen ------------------------
+            if time.time() - last_event_time >= 3:
+                break
+
+            time.sleep(0.01)
+    # reached max retries return False transfer failed
+    return False
 
 # ------------- Helpers for send_frame -------------
 
@@ -126,13 +144,11 @@ def send_all_chunks(mySocket, frame):
     for chunk in frame:
         mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (chunk.header.destination_ip, chunk.header.destination_port)))
 
-def check_ACK(mySocket, seq_num):
-    if mySocket.ack_store.has_ack(seq_num):
-        return True
-    return False
-
-
-
+def send_missing_chunks(mySocket, frame, missing):
+    for missing_chunk in missing:
+        for chunk in frame:
+            if chunk.header.chunk_id == missing_chunk:
+                mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (chunk.header.destination_ip, chunk.header.destination_port)))
 
 # ====================================================================================================
 # Helpers Methods

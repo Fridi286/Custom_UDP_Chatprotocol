@@ -22,3 +22,10 @@ class AckStore:
     def get_all(self) -> set[int]:
         with self._lock:
             return set(self._acks)
+
+    def check_and_delete_ack(self, seq_num: int) -> bool:
+        with self._lock:
+            if seq_num in self._acks:
+                self._acks.remove(seq_num)
+                return True
+            return False
