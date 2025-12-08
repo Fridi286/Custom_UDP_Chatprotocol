@@ -6,3 +6,9 @@ TTL_DEFAULT = 64
 MAX_RETRIES = 3
 FRAME_WAIT_TIME = 3
 
+MAX_BANDWIDTH_BYTES = 1_000_000   # 1 MByte pro Sekunde erlaubt
+PACKET_SIZE_BYTES = 1500          # ungefähre Größe pro Paket
+
+MAX_PPS = MAX_BANDWIDTH_BYTES // PACKET_SIZE_BYTES #ca
+
+

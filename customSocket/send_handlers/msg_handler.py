@@ -5,13 +5,13 @@ from customSocket.helpers.models import Header, MsgMessage, MsgPayload
 
 
 def send_Text(
+        mySocket,
         seq_num,
         msg,
         dest_ip,
         dest_port,
         src_ip,
-        src_port,
-        send_queue
+        src_port
 ):
     # prepare payload bytes and checksum so Header validation succeeds
     payload_bytes = msg.encode('utf-8')
@@ -39,6 +39,6 @@ def send_Text(
         )
     )
 
-    send_queue.put((byteEncoder.encodePayload(data), (dest_ip, dest_port)))
+    mySocket.send_queue.put((byteEncoder.encodePayload(data), (dest_ip, dest_port)))
     print(f"\n[SENT to {dest_ip}:{dest_port}] {msg}")
     return

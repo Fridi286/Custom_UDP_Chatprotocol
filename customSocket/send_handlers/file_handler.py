@@ -18,8 +18,7 @@ def send_Data(
         dest_ip,
         dest_port,
         src_ip,
-        src_port,
-        send_queue
+        src_port
 ):
     path = input("Gib den Dateipfad der zu verschickenden Datei an: ")
     if not os.path.exists(path):
@@ -92,15 +91,17 @@ def send_Data(
             )
 
             # Send Full Frame
-            if len(frame) == FRAME_SIZE:
-                succ = send_frame(mySocket, frame, seq_num)
+            if len(frame) == FRAME_SIZE + 1:
+                if not send_frame(mySocket, frame, seq_num):
+                    return False
                 frame = []
 
         # Send Rest Frame
         if frame:
-            succ = send_frame(mySocket, seq_num)
+            if not send_frame(mySocket, frame, seq_num):
+                return False
 
-    print(path)
+    return succ
 
 
 
@@ -131,7 +132,7 @@ def send_frame(mySocket, frame, seq_num) -> bool:
                 last_event_time = time.time()  # Timer reset
                 continue
             # --------------- Timeout prüfen ------------------------
-            if time.time() - last_event_time >= 3:
+            if time.time() - last_event_time >= 5:
                 break
 
             time.sleep(0.01)
@@ -142,13 +143,19 @@ def send_frame(mySocket, frame, seq_num) -> bool:
 
 def send_all_chunks(mySocket, frame):
     for chunk in frame:
-        mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (chunk.header.destination_ip, chunk.header.destination_port)))
+        dest_ip_str = str(ipaddress.IPv4Address(chunk.header.destination_ip))
+        print("put")
+        mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (dest_ip_str, chunk.header.destination_port)))
+
 
 def send_missing_chunks(mySocket, frame, missing):
     for missing_chunk in missing:
         for chunk in frame:
             if chunk.header.chunk_id == missing_chunk:
-                mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (chunk.header.destination_ip, chunk.header.destination_port)))
+                print("put")
+                dest_ip_str = str(ipaddress.IPv4Address(chunk.header.destination_ip))
+                mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (dest_ip_str, chunk.header.destination_port)))
+
 
 # ====================================================================================================
 # Helpers Methods
