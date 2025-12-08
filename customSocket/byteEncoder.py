@@ -1,27 +1,9 @@
 import hashlib
 
-from customSocket.models import AnyMessage, Header, NoAckPayload, MsgPayload, FileChunkPayload, FileInfoPayload, \
+from customSocket.helpers.models import AnyMessage, Header, NoAckPayload, MsgPayload, FileChunkPayload, FileInfoPayload, \
     RoutingUpdatePayload
 
-
-def encodeAll(header: Header, payload) -> bytes:
-
-    type = header.type.to_bytes(1, "big")
-    seqNumber = header.sequence_number.to_bytes(4, "big")
-    destIP = header.destination_ip.to_bytes(4, "big")
-    srcIP = header.source_ip.to_bytes(4, "big")
-    destPort = header.destination_port.to_bytes(2, "big")
-    srcPort = header.source_port.to_bytes(2, "big")
-
-    payloadLength = len(payload).to_bytes(4, "big")
-
-    chunkID = header.chunk_id.to_bytes(4, "big")
-    chunkLength = header.chunk_length.to_bytes(4, "big")
-    ttl = header.ttl.to_bytes(1, "big")
-
-    checksum = hashlib.sha256(payload).digest()
-
-    return type+seqNumber+destIP+srcIP+destPort+srcPort+payloadLength+chunkID+chunkLength+ttl+checksum
+# ============================ Helpers ==========================================
 
 def encodeNoAck(payload: NoAckPayload) -> bytes:
     sequenceNumber = payload.sequence_number.to_bytes(4, "big")
@@ -54,8 +36,33 @@ def encodeRoutingUpdate(payload: RoutingUpdatePayload) -> bytes:
     return data
 
 
+# =========================================================================
 
-# This is the mthod used
+
+def encodeAll(header: Header, payload) -> bytes:
+
+    type = header.type.to_bytes(1, "big")
+    seqNumber = header.sequence_number.to_bytes(4, "big")
+    destIP = header.destination_ip.to_bytes(4, "big")
+    srcIP = header.source_ip.to_bytes(4, "big")
+    destPort = header.destination_port.to_bytes(2, "big")
+    srcPort = header.source_port.to_bytes(2, "big")
+
+    payloadLength = len(payload).to_bytes(4, "big")
+
+    chunkID = header.chunk_id.to_bytes(4, "big")
+    chunkLength = header.chunk_length.to_bytes(4, "big")
+    ttl = header.ttl.to_bytes(1, "big")
+
+    checksum = hashlib.sha256(payload).digest()
+
+    return type+seqNumber+destIP+srcIP+destPort+srcPort+payloadLength+chunkID+chunkLength+ttl+checksum+payload
+
+
+# ======================================================================
+# This is the Methode use do encode a Message
+# ======================================================================
+
 def encodePayload(message: AnyMessage) -> bytes:
 
     msgType = message.header.type

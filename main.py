@@ -17,7 +17,7 @@ def main():
     open_terminal(f"{VENV_PYTHON} -m customSocket.mySocket 127.0.0.1 3002")
     time.sleep(0.3)
 
-    open_terminal(f"{VENV_PYTHON} -m customSocket.mySocket 127.0.0.1 3003")
+    #open_terminal(f"{VENV_PYTHON} -m customSocket.mySocket 127.0.0.1 3003")
     time.sleep(0.3)
 
 if __name__ == "__main__":

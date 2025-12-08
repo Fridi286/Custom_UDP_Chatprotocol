@@ -1,14 +1,12 @@
 # my_socket.py
-import ipaddress
-import os.path
 import sys
 import threading
-import hashlib
+from queue import Queue
 from socket import socket, AF_INET, SOCK_DGRAM
 
+from customSocket.send_handlers import msg_handler, file_handler
 # use package-relative imports so module works when executed as part of the package
-from . import byteDecoder, byteEncoder
-from .models import MsgMessage, Header, MsgPayload
+from . import byteDecoder
 
 
 class MySocket:
@@ -16,16 +14,19 @@ class MySocket:
     # ====================================================================================================
     # Constructor
     # ====================================================================================================
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
+
+    def __init__(self, my_ip, my_port):
+        self.my_ip = my_ip
+        self.my_port = my_port
 
         self.sock = socket(AF_INET, SOCK_DGRAM)
         self.sock.bind((host, port))
 
-        print(f"\nYour IP: {self.host}, Your Port: {self.port}")
+        self.send_queue = Queue()
 
-        print(f"\n[INFO] Listening on {host}:{port}")
+        print(f"\nYour IP: {self.my_ip}, Your Port: {self.my_port}")
+
+        print(f"\n[INFO] Listening on {my_ip}:{my_port}")
 
         self.seq_counter = 1
         self.seq_lock = threading.Lock()
@@ -35,7 +36,11 @@ class MySocket:
         listener_thread = threading.Thread(target=self.listen, daemon=True)
         listener_thread.start()
 
-        # Sender Thread starten (pass the function, don't call it)
+        # Sending Queue starten
+        sender_thread = threading.Thread(target=self.send_loop, daemon=True)
+        sender_thread.start()
+
+        # Sender Thread starten
         send_thread = threading.Thread(target=self.send_message, daemon=True)
         send_thread.start()
 
@@ -49,11 +54,13 @@ class MySocket:
     def listen(self):
 
         while True:
-            print("received smth")
-            data, addr = self.sock.recvfrom(4096)
-            msg = byteDecoder.decodePayload(data)
+            try:
+                data, addr = self.sock.recvfrom(4096)
+                msg = byteDecoder.decodePayload(data)
 
-            print(f"\n[RECV from {addr}] \n{msg}")
+                print(f"\n[RECV from {addr}] \n{msg}")
+            except Exception as e:
+                print(e)
 
     # ====================================================================================================
     # Sending MSG and DATA
@@ -68,12 +75,13 @@ class MySocket:
                 msg = input("Gib deine Nachricht ein (Wenn du eine Datei verschicken willst, gib \"Send Data\" ein): ")
                 seqNum = self.get_seq_num()
                 if msg.upper() == "SEND DATA":
-                    threading.Thread(target=self.send_Data, args=(seqNum, dest_ip, dest_port), daemon=True).start()
+                    threading.Thread(target=file_handler.send_Data, args=(seqNum, msg, dest_ip, dest_port, self.my_ip, self.my_port, self.send_queue), daemon=True).start()
                 else:
-                    threading.Thread(target=self.send_Text, args=(seqNum, msg, dest_ip, dest_port), daemon=True).start()
+                    threading.Thread(target=msg_handler.send_Text, args=(seqNum, msg, dest_ip, dest_port, self.my_ip, self.my_port, self.send_queue), daemon=True).start()
             except Exception as e:
                 print(e)
 
+    # ----------- Set Sequence Number ------------
     def get_seq_num(self):
         with self.seq_lock:
             num = self.seq_counter
@@ -81,71 +89,14 @@ class MySocket:
             self.takenSeqNum.add(num)
             return num
 
-    # ============================== Send Files ===============================
-
-    def send_Data(self, seq_Num, dest_ip, dest_port):
-        path = input("Gib den Dateipfad der zu verschickenden Datei an: ")
-        if not os.path.exists(path):
-            print("Pfad existiert nicht!")
-            return
-        elif not os.path.isfile(path):
-            print("Es ist keine Datei!")
-            return
-        elif not os.access(path, os.R_OK):
-            print("Keine Leserechte!")
-            return
-        else:
-            print("Pfad ist gültig und lesbar.")
-
-        # Here starts the real magic
-
-        filename = os.path.basename(path)
-
-
-        #with open(path, "rb") as f:
-            #TODO
-
-
-        print(path)
-
-    def send_File(self, data, dest_ip, dest_port):
-        #TODO
-        return
-
-
-    # ============================== Send Normal Text Message ===============================
-
-    def send_Text(self,seq_num, msg, dest_ip, dest_port):
-        # prepare payload bytes and checksum so Header validation succeeds
-        payload_bytes = msg.encode('utf-8')
-        payload_length = len(payload_bytes)
-        checksum = hashlib.sha256(payload_bytes).digest()
-
-        header = Header(
-            type=5,
-            sequence_number=seq_num,
-            destination_ip=int(ipaddress.IPv4Address(dest_ip)),
-            source_ip=int(ipaddress.IPv4Address(self.host)),
-            destination_port=dest_port,
-            source_port=self.port,
-            payload_length=payload_length,
-            chunk_id=0,
-            chunk_length=0,
-            ttl=10,
-            checksum=checksum,
-        )
-        data = MsgMessage(
-            header=header,
-            payload=MsgPayload(
-                text=msg
-            )
-        )
-
-        self.sock.sendto(byteEncoder.encodePayload(data), (dest_ip, dest_port))
-
-        print(f"\n[SENT to {dest_ip}:{dest_port}] {msg}")
-
-
+    # ----------- Sending Loop waits for items in the queue, continouisly checks if the queue has data to send
+    def send_loop(self):
+        while True:
+            try:
+                packet, addr = self.send_queue.get()
+                self.sock.sendto(packet, addr)
+            except Exception as e:
+                print("[SEND ERROR]", e)
 
     # ====================================================================================================
     # Starter

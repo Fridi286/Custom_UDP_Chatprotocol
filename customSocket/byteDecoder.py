@@ -1,7 +1,7 @@
 import hashlib
 from typing import Tuple
 
-from customSocket.models import Header, AckMessage, HelloMessage, GoodbyeMessage, HeartbeatMessage, NoAckMessage, \
+from customSocket.helpers.models import Header, AckMessage, HelloMessage, GoodbyeMessage, HeartbeatMessage, NoAckMessage, \
     NoAckPayload, MsgPayload, MsgMessage, FileChunkMessage, FileChunkPayload, FileInfoPayload, FileInfoMessage, \
     RoutingUpdateMessage, RoutingUpdatePayload, RoutingEntry, AnyMessage
 
