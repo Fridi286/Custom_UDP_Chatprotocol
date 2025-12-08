@@ -4,6 +4,8 @@ import threading
 from queue import Queue
 from socket import socket, AF_INET, SOCK_DGRAM
 
+from customSocket.helpers.ack_store import AckStore
+from customSocket.helpers.noack_store import NoAckStore
 from customSocket.send_handlers import msg_handler, file_handler
 # use package-relative imports so module works when executed as part of the package
 from . import byteDecoder
@@ -23,6 +25,9 @@ class MySocket:
         self.sock.bind((host, port))
 
         self.send_queue = Queue()
+
+        self.ack_store = AckStore()
+        self.noack_store = NoAckStore()
 
         print(f"\nYour IP: {self.my_ip}, Your Port: {self.my_port}")
 
