@@ -49,6 +49,7 @@ class MySocket:
     def listen(self):
 
         while True:
+            print("received smth")
             data, addr = self.sock.recvfrom(4096)
             msg = byteDecoder.decodePayload(data)
 
