@@ -27,7 +27,9 @@ class MySocket:
 
         print(f"\n[INFO] Listening on {host}:{port}")
 
-        self.takenSeqNum = {0}
+        self.seq_counter = 1
+        self.seq_lock = threading.Lock()
+        self.takenSeqNum = set()
 
         # Listener Thread starten
         listener_thread = threading.Thread(target=self.listen, daemon=True)
@@ -71,15 +73,12 @@ class MySocket:
             except Exception as e:
                 print(e)
 
-    def get_seq_num(self) -> int:
-        num = 1
-        while True:
-            if num in self.takenSeqNum:
-                num += 1
-            else:
-                self.takenSeqNum.add(num)
-                return num
-
+    def get_seq_num(self):
+        with self.seq_lock:
+            num = self.seq_counter
+            self.seq_counter += 1
+            self.takenSeqNum.add(num)
+            return num
 
     # ============================== Send Files ===============================
 
