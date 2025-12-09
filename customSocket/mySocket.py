@@ -10,12 +10,17 @@ from queue import SimpleQueue
 
 
 from socket import socket, AF_INET, SOCK_DGRAM
+from typing import Tuple
 
 from customSocket.helpers.ack_store import AckStore
 from customSocket.helpers.file_store import FileStore
 from customSocket.helpers.noack_store import NoAckStore
 from customSocket.recv_handlers import personal_recv_handler
-from customSocket.send_handlers import msg_handler, file_handler, ack_handler, no_ack_handler
+from customSocket.routing.neigbor_table import NextNeighborTable
+from customSocket.routing.neighbor_monitor import NeighborMonitor
+from customSocket.routing.routing_table import RoutingTable
+from customSocket.send_handlers import msg_handler, file_handler, ack_handler, no_ack_handler, heartbeat_handler, \
+    hello_handler
 from . import byteDecoder, config
 
 
@@ -40,20 +45,44 @@ class MySocket:
         # self.send_queue = Queue() #OLD
         self.send_queue = SimpleQueue()
 
+        # queues for all incomming msgs
         self.all_incoming = queue.Queue(maxsize=20000)
         self.routing_incoming = queue.Queue(maxsize=10000)
         self.my_incoming = queue.Queue(maxsize=10000)
 
+        # storage for acks and noacks
         self.ack_store = AckStore()
         self.noack_store = NoAckStore()
+
+        # storage for all files that the user receives
         self.file_store = FileStore(
             on_frame_complete=self.send_ack_frame,  #Callback function
             on_frame_timeout=self.send_noack_frame  #Callback function
         )
 
+        # Sequence Number Producer
         self.seq_counter = 1
         self.seq_lock = threading.Lock()
         self.takenSeqNum = set()
+
+        # Routing Logic
+        self.routing_table = RoutingTable()
+        self.neighbor_table = NextNeighborTable()
+
+        # Hello Logic - After giving Hello IP/Ports Code, socket will run
+        self.hello_list = self.handel_hello()
+
+        # Neighbor Monitoring Thread starten
+        monitor = NeighborMonitor(
+            self.neighbor_table,
+            self.routing_table,
+            on_routing_update=self.send_routing_update,  #Callback function
+        )
+        monitor.start()
+
+        # Heartbeat starten
+        heartbeat = threading.Thread(target=self.send_heartbeats, daemon=True)
+        heartbeat.start()
 
         # Listener Thread starten
         threading.Thread(target=self.listen, daemon=True).start()
@@ -115,7 +144,7 @@ class MySocket:
         while True:
             data = queue_get()
             msgType = int.from_bytes(data[0:1], "big")
-            self.HANDLERS[msgType](self, data)
+            self.HANDLERS[msgType](self, data, on_routing_update=self.send_routing_update)
 
     # ---------- Handels data which is not for you and needs routing ---
     def handel_routing_incoming(self):
@@ -131,6 +160,41 @@ class MySocket:
         seq_num, src_ip, src_port = key
         print(f"[NOACK] missing {missing_chunks}")
         no_ack_handler.send_no_ack(self, seq_num, src_ip, src_port, self.my_ip, self.my_port, missing_chunks)
+
+    # --------- Handel routing/neigbor Updates ----------------------------------
+    def send_routing_update(self):
+        print("[INFO] Routing Update triggered!")
+        # → hier baust du ROUTING_UPDATE und sendest an alle alive neighbors
+
+    # --------- Send heartbeats ----------------------------------
+    def send_heartbeats(self):
+        while True:
+            neighbors = self.neighbor_table.get_alive_neighbors()
+            seqNum = self.get_seq_num()
+            for entry in neighbors:
+                heartbeat_handler.send_heartbeat(self, seqNum, entry.ip, entry.port, self.my_ip, self.my_port)
+            print(f"\n[SENT]Heartbeats to: {neighbors}\n")
+            time.sleep(config.HEARTBEAT_TIMER)
+
+    # ====================================================================================================
+    # Sending Hello and Goodbye
+    # ====================================================================================================
+
+    def handel_hello(self):
+        neighbors = []
+        entry: Tuple[str, int]
+        print("\nBitte gib im folgenden jeweils die IP und den Port der Nachbar ein die du hinzufügen willst.\nEine leere Eingabe beendet das hinzufügen.\n")
+        while True:
+            entry_ip = input("\nGib die IP eines Nachbarns ein:")
+            if not entry_ip: break
+            entry_port = input("\nGib die den Port des Nachbarns ein:")
+            if not entry_port: break
+            neighbors.append((entry_ip, entry_port))
+
+        for entry in neighbors:
+            dest_ip, dest_port = entry
+            hello_handler.send_hello(self, self.get_seq_num(), dest_ip, int(dest_port), self.my_ip, self.my_port)
+        return
 
     # ====================================================================================================
     # Sending MSG and DATA

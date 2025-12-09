@@ -1,3 +1,5 @@
+import ipaddress
+
 from customSocket import byteDecoder
 from customSocket.helpers.models import NoAckMessage
 from customSocket.send_handlers import ack_handler
@@ -6,14 +8,14 @@ from customSocket.send_handlers import ack_handler
 # =========================================================
 #
 # =========================================================
-def handle_ack(mySocket, data):
+def handle_ack(mySocket, data, on_routing_update=None):
     mySocket.ack_store.add_ack(int.from_bytes(data[1: 5], "big"))
     print(f"\nRec Ack for Seq: {data[1: 5]}")
 
 # =========================================================
 #
 # =========================================================
-def handle_no_ack(mySocket, data):
+def handle_no_ack(mySocket, data, on_routing_update=None):
     msg, succ = byteDecoder.decodePayload(data)
     if not succ:
         print("Received NoAck with Wrong Checksum")
@@ -27,15 +29,18 @@ def handle_no_ack(mySocket, data):
 # =========================================================
 #
 # =========================================================
-def handle_hello(mySocket, data):
-    #TODO
+def handle_hello(mySocket, data, on_routing_update):
+    src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
+    src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
+    mySocket.neighbor_table.update_neighbor(src_ip, src_port)
+    on_routing_update()
     print("handle_hello")
 
 # =========================================================
 # Handling received MSGs
 # =========================================================
 
-def handle_msg(mySocket, data):
+def handle_msg(mySocket, data, on_routing_update=None):
     msg, succ = byteDecoder.decodePayload(data)
     if not succ:
         print("Received Message with Wrong Checksum")
@@ -48,7 +53,7 @@ def handle_msg(mySocket, data):
 # =========================================================
 
 
-def handle_goodbye(mySocket, data):
+def handle_goodbye(mySocket, data, on_routing_update=None):
     #TODO
     print("handle_goodbye")
 
@@ -57,7 +62,7 @@ def handle_goodbye(mySocket, data):
 # =========================================================
 
 
-def handle_file_chunk(mySocket, data):
+def handle_file_chunk(mySocket, data, on_routing_update=None):
     file_chunk, succ = byteDecoder.decodePayload(data)
     if not succ: return False
     succ = mySocket.file_store.add_chunk(
@@ -76,7 +81,7 @@ def handle_file_chunk(mySocket, data):
 # =========================================================
 
 
-def handle_file_info(mySocket, data):
+def handle_file_info(mySocket, data, on_routing_update=None):
     file_info, succ = byteDecoder.decodePayload(data)
     if not succ: return False
     succ = mySocket.file_store.register_file_info(
@@ -95,8 +100,10 @@ def handle_file_info(mySocket, data):
 # =========================================================
 
 
-def handle_heartbeat(mySocket, data):
-    #TODO
+def handle_heartbeat(mySocket, data, on_routing_update=None):
+    src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
+    src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
+    mySocket.neighbor_table.update_neighbor(src_ip, src_port)
     print("handle_heartbeat")
 
 # =========================================================
@@ -104,6 +111,6 @@ def handle_heartbeat(mySocket, data):
 # =========================================================
 
 
-def handle_routing_update(mySocket, data):
+def handle_routing_update(mySocket, data, on_routing_update=None):
     #TODO
     print("handle_routing_update")
