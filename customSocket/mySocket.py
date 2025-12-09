@@ -6,7 +6,6 @@ import threading
 import time
 from queue import Queue
 from queue import SimpleQueue
-from fastqueue import Queue as FastQueue
 
 
 
