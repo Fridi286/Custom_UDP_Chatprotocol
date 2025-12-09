@@ -43,7 +43,6 @@ def handle_msg(mySocket, data):
     ack_handler.send_ack(mySocket, msg.header.sequence_number, msg.header.source_ip, msg.header.source_port, mySocket.my_ip, mySocket.my_port)
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
           f"{msg.payload.text}\n")
-
 # =========================================================
 #
 # =========================================================

@@ -16,7 +16,6 @@ from customSocket.helpers.file_store import FileStore
 from customSocket.helpers.noack_store import NoAckStore
 from customSocket.recv_handlers import personal_recv_handler
 from customSocket.send_handlers import msg_handler, file_handler, ack_handler, no_ack_handler
-# use package-relative imports so module works when executed as part of the package
 from . import byteDecoder, config
 
 

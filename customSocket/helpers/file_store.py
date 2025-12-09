@@ -159,15 +159,15 @@ class FileStore:
     # ============================================================
     def is_complete(self, seq_num, src_ip, src_port):
         key = (seq_num, src_ip, src_port)
-
         with self.lock:
             if key not in self.files:
                 return False
 
             file = self.files[key]
+            print(len(file["received"]), file["total_chunks"])
             return len(file["received"]) == file["total_chunks"]
 
-    def assemble_file(self, seq_num, src_ip, src_port, output_folder="received_files"):
+    def assemble_file(self, seq_num, src_ip, src_port, output_folder="received_data"):
 
         key = (seq_num, src_ip, src_port)
 
