@@ -97,13 +97,13 @@ class HeartbeatPayload(BaseModel):
 
 
 # --- Typ 0x09 ROUTING_UPDATE ---
-class RoutingEntry(BaseModel):
+class RoutingUpdateEntry(BaseModel):
     dest_ip: int
     dest_port: int
     distance: int
 
 class RoutingUpdatePayload(BaseModel):
-    entries: List[RoutingEntry]
+    entries: List[RoutingUpdateEntry]
 
 
 # ======================================================

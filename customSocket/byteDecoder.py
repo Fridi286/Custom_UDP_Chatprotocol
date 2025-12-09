@@ -3,7 +3,7 @@ from typing import Tuple
 
 from customSocket.helpers.models import Header, AckMessage, HelloMessage, GoodbyeMessage, HeartbeatMessage, NoAckMessage, \
     NoAckPayload, MsgPayload, MsgMessage, FileChunkMessage, FileChunkPayload, FileInfoPayload, FileInfoMessage, \
-    RoutingUpdateMessage, RoutingUpdatePayload, RoutingEntry, AnyMessage
+    RoutingUpdateMessage, RoutingUpdatePayload, RoutingUpdateEntry, AnyMessage
 
 
 def parseHeader(h) -> Header:
@@ -84,7 +84,7 @@ def parseRoutingUpdate(payload) -> RoutingUpdatePayload:
 
     for i in range(entryCount):
         routingEntries.append(
-            RoutingEntry(
+            RoutingUpdateEntry(
                 dest_ip=int.from_bytes(payload[offset : offset+4], "big"),
                 dest_port=int.from_bytes(payload[offset+4 : offset+6], "big"),
                 distance=int.from_bytes(payload[offset+6 : offset+7], "big")
