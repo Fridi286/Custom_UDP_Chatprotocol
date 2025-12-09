@@ -8,6 +8,7 @@ from customSocket.send_handlers import ack_handler
 # =========================================================
 def handle_ack(mySocket, data):
     mySocket.ack_store.add_ack(int.from_bytes(data[1: 5], "big"))
+    print(f"\nRec Ack for Seq: {data[1: 5]}")
 
 # =========================================================
 #
@@ -21,6 +22,7 @@ def handle_no_ack(mySocket, data):
     seq_num = pld.sequence_number
     chunks = pld.missing_chunks
     mySocket.noack_store.add_noack(seq_num, chunks)
+    print(f"\nRec NOACK for Seq: {seq_num}, missing chunk: {chunks}\n")
 
 # =========================================================
 #

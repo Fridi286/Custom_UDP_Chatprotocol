@@ -15,7 +15,7 @@ from customSocket.helpers.ack_store import AckStore
 from customSocket.helpers.file_store import FileStore
 from customSocket.helpers.noack_store import NoAckStore
 from customSocket.recv_handlers import personal_recv_handler
-from customSocket.send_handlers import msg_handler, file_handler, ack_handler
+from customSocket.send_handlers import msg_handler, file_handler, ack_handler, no_ack_handler
 # use package-relative imports so module works when executed as part of the package
 from . import byteDecoder, config
 
@@ -128,10 +128,10 @@ class MySocket:
     def send_ack_frame(self, seq_num, src_ip, src_port):
         ack_handler.send_ack(self, seq_num, src_ip, src_port, self.my_ip, self.my_port)
 
-    def send_noack_frame(self, file_key, missing_chunks):
-        seq_num, src_ip, src_port = file_key
+    def send_noack_frame(self, key, missing_chunks):
+        seq_num, src_ip, src_port = key
         print(f"[NOACK] missing {missing_chunks}")
-        # hier schickst du dein NoAck mit missing_chunks
+        no_ack_handler.send_no_ack(self, seq_num, src_ip, src_port, self.my_ip, self.my_port, missing_chunks)
 
     # ====================================================================================================
     # Sending MSG and DATA
