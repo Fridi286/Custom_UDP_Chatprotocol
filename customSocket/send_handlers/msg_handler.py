@@ -63,7 +63,7 @@ def send_Text(
                 last_event_time = time.time()  # Timer reset
                 continue
             # --------------- Timeout prüfen ------------------------
-            if time.time() - last_event_time >= 5:
+            if time.time() - last_event_time >= config.WAIT_FOR_ACK_TIME:
                 break
 
             time.sleep(0.01)

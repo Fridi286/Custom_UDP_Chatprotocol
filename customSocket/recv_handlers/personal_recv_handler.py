@@ -15,8 +15,7 @@ def handle_ack(mySocket, data):
 def handle_no_ack(mySocket, data):
     msg, succ = byteDecoder.decodePayload(data)
     if not succ:
-        #TODO
-        print("Wrong Checksum")
+        print("Received NoAck with Wrong Checksum")
         return
     pld = msg.payload
     seq_num = pld.sequence_number
@@ -37,8 +36,7 @@ def handle_hello(mySocket, data):
 def handle_msg(mySocket, data):
     msg, succ = byteDecoder.decodePayload(data)
     if not succ:
-        #TODO
-        print("Wrong Checksum")
+        print("Received Message with Wrong Checksum")
         return
     ack_handler.send_ack(mySocket, msg.header.sequence_number, msg.header.source_ip, msg.header.source_port, mySocket.my_ip, mySocket.my_port)
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
@@ -59,8 +57,18 @@ def handle_goodbye(mySocket, data):
 
 
 def handle_file_chunk(mySocket, data):
-    #TODO
+    file_chunk, succ = byteDecoder.decodePayload(data)
+    if not succ: return False
+    succ = mySocket.file_store.add_chunk(
+        file_chunk.header.sequence_number,
+        file_chunk.header.source_ip,
+        file_chunk.header.source_port,
+        file_chunk.header.chunk_id,
+        file_chunk.payload.data
+    )
+    print(f"Got: {file_chunk.header.chunk_id}")
     print("handle_file_chunk")
+    return succ
 
 # =========================================================
 #
@@ -68,8 +76,18 @@ def handle_file_chunk(mySocket, data):
 
 
 def handle_file_info(mySocket, data):
-    #TODO
+    file_info, succ = byteDecoder.decodePayload(data)
+    if not succ: return False
+    succ = mySocket.file_store.register_file_info(
+        file_info.header.sequence_number,
+        file_info.header.source_ip,
+        file_info.header.source_port,
+        file_info.payload.filename,
+        file_info.header.chunk_length
+    )
+    print(f"Got File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
     print("handle_file_info")
+    return succ
 
 # =========================================================
 #

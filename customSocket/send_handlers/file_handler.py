@@ -37,44 +37,33 @@ def send_Data(
 
     filename = os.path.basename(path)
 
+
     size = os.path.getsize(path)
 
-    # ==========Important Variables=============
+    # ==========Important Variables==========================
     ttl = config.TTL_DEFAULT
     CHUNK_SIZE = config.CHUNK_SIZE
     FRAME_SIZE = config.FRAME_SIZE
-    # ==========================================
+    # =======================================================
 
     # Calculate Num of Chunks
-    chunk_length = math.ceil(size / CHUNK_SIZE) + 1
+    chunk_length = math.ceil(size / CHUNK_SIZE)
 
+    # =======================================================
+    # Sending File_Info, waiting for before data transfer
+    # =======================================================
+
+    if not send_check_file_info(mySocket, seq_num, dest_ip, src_ip, dest_port, src_port, chunk_length, ttl, filename):
+        return False
+
+    # =======================================================
+    # Iteratign through all bytes of data creating frames and sending
+    # =======================================================
 
     with open(path, "rb") as f:
         frame: list[AnyMessage] = []
-        frame.append(
-            FileInfoMessage(
-                header=Header(
-                    type=7,
-                    sequence_number=seq_num,
-                    destination_ip=int(ipaddress.IPv4Address(dest_ip)),
-                    source_ip=int(ipaddress.IPv4Address(src_ip)),
-                    destination_port=dest_port,
-                    source_port=src_port,
-                    payload_length=0,           #gets calculated in encoder
-                    chunk_id=0,                 #FileInfo gets chunk_id = 0
-                    chunk_length=chunk_length,
-                    ttl=ttl,
-                    checksum=bytes(32),          #gets calculated in encoder
-                ),
-                payload=FileInfoPayload(
-                    filename=filename
-                )
-            )
-        )
         # ---------- DATA CHUNKS ----------
-        for chunk_id in range(1, chunk_length):
-
-            succ = False
+        for chunk_id in range(0, chunk_length):
 
             chunk_bytes = f.read(CHUNK_SIZE)
 
@@ -89,7 +78,6 @@ def send_Data(
                     ttl
                 )
             )
-
             # Send Full Frame
             if len(frame) == FRAME_SIZE + 1:
                 if not send_frame(mySocket, frame, seq_num):
@@ -101,9 +89,67 @@ def send_Data(
             if not send_frame(mySocket, frame, seq_num):
                 return False
 
-    return succ
+    print("transfer finished")
+
+    return True
+
+# ======================================Down here are "private methods"=================================================
 
 
+# ======================================================================================================================
+# Sending File_Info, waiting for before data transfer
+# ======================================================================================================================
+
+def send_check_file_info(mySocket, seq_num, dest_ip, src_ip, dest_port, src_port, chunk_length, ttl, filename) -> bool:
+
+    file_info = FileInfoMessage(
+        header=Header(
+            type=7,
+            sequence_number=seq_num,
+            destination_ip=int(ipaddress.IPv4Address(dest_ip)),
+            source_ip=int(ipaddress.IPv4Address(src_ip)),
+            destination_port=dest_port,
+            source_port=src_port,
+            payload_length=0,  # gets calculated in encoder
+            chunk_id=0,  # FileInfo gets chunk_id = 0
+            chunk_length=chunk_length,
+            ttl=ttl,
+            checksum=bytes(32),  # gets calculated in encoder
+        ),
+        payload=FileInfoPayload(
+            filename=filename
+        )
+    )
+
+    for _ in range(config.MAX_RETRIES):
+        if mySocket.ack_store.check_and_delete_ack(seq_num):
+            print(f"\n[FILE_INFO WAS SENT TO: {dest_ip}:{dest_port}]\n")
+            return True
+
+        mySocket.send_queue.put((byteEncoder.encodePayload(file_info), (dest_ip, dest_port)))
+
+        last_event_time = time.time()
+        while True:
+
+            # --------------- ACK angekommen? ---------------
+            if mySocket.ack_store.check_and_delete_ack(seq_num):
+                print(f"\n[FILE_INFO WAS SENT TO: {dest_ip}:{dest_port}]\n")
+                return True
+            # --------------- NoAck angekommen? --------------
+            missing = mySocket.noack_store.get_and_delete_missing(seq_num)
+            if missing:
+                mySocket.send_queue.put((byteEncoder.encodePayload(file_info), (dest_ip, dest_port)))
+                last_event_time = time.time()  # Timer reset
+                continue
+            # --------------- Timeout prüfen ------------------------
+            if time.time() - last_event_time >= config.WAIT_FOR_ACK_TIME:
+                break
+
+            time.sleep(0.01)
+
+    print(f"\n[FILE_INFO COULD NOT BE SENT TO: {dest_ip}:{dest_port}]\n")
+
+    return False
 
 # ====================================================================================================
 # This Method handels the sending / resending / Ack and No_Ack Handling of one Frame
@@ -144,7 +190,7 @@ def send_frame(mySocket, frame, seq_num) -> bool:
 def send_all_chunks(mySocket, frame):
     for chunk in frame:
         dest_ip_str = str(ipaddress.IPv4Address(chunk.header.destination_ip))
-        print("put")
+        print(f"Sent: {chunk.header.chunk_id}")
         mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (dest_ip_str, chunk.header.destination_port)))
 
 
@@ -152,7 +198,7 @@ def send_missing_chunks(mySocket, frame, missing):
     for missing_chunk in missing:
         for chunk in frame:
             if chunk.header.chunk_id == missing_chunk:
-                print("put")
+                print(f"Re-Sent: {chunk.header.chunk_id}")
                 dest_ip_str = str(ipaddress.IPv4Address(chunk.header.destination_ip))
                 mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (dest_ip_str, chunk.header.destination_port)))
 
