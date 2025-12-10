@@ -62,3 +62,21 @@ class NextNeighborTable:
     def is_alive(self, ip: int, port: int) -> bool:
         entry = self.neighbors.get((ip, port))
         return entry.alive if entry else False
+
+    def kill_neighbor(self, ip: int, port: int) -> bool:
+        """
+        Setzt einen Nachbarn manuell auf tot (alive = False).
+        Gibt True zurück, wenn der Status sich geändert hat.
+        """
+        key = (ip, port)
+
+        if key not in self.neighbors:
+            return False
+
+        entry = self.neighbors[key]
+
+        if entry.alive:
+            entry.alive = False
+            return True
+
+        return False

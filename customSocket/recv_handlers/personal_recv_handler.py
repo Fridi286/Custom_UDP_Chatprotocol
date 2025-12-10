@@ -53,8 +53,11 @@ def handle_msg(mySocket, data, on_routing_update=None):
 # =========================================================
 
 
-def handle_goodbye(mySocket, data, on_routing_update=None):
-    #TODO
+def handle_goodbye(mySocket, data, on_routing_update):
+    src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
+    src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
+    mySocket.neighbor_table.kill_neighbor(src_ip, src_port)
+    on_routing_update()
     print("handle_goodbye")
 
 # =========================================================
