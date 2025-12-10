@@ -1,0 +1,8 @@
+senden:
+1. für tote nachbarn setzten wir distance auf 255
+2. routen bei den der next hop der empfänger des routing updates wäre, werden nicht mitgesendet
+3.
+
+empfangen:
+1. routen mit 255 distance müssen auf 255 gesetzt werden
+2. distancen neu berechnen

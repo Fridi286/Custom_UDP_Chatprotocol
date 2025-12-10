@@ -76,7 +76,7 @@ def handle_file_chunk(mySocket, data, on_routing_update=None):
         file_chunk.payload.data
     )
     print(f"Got: {file_chunk.header.chunk_id}")
-    print("handle_file_chunk")
+    #print("handle_file_chunk")
     return succ
 
 # =========================================================
@@ -95,7 +95,6 @@ def handle_file_info(mySocket, data, on_routing_update=None):
         file_info.header.chunk_length
     )
     print(f"Got File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
-    print("handle_file_info")
     return succ
 
 # =========================================================
@@ -107,7 +106,7 @@ def handle_heartbeat(mySocket, data, on_routing_update=None):
     src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
     src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
     mySocket.neighbor_table.update_neighbor(src_ip, src_port)
-    print("handle_heartbeat")
+    #print("handle_heartbeat")
 
 # =========================================================
 #

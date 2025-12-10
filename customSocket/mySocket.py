@@ -19,8 +19,9 @@ from customSocket.recv_handlers import personal_recv_handler
 from customSocket.routing.neigbor_table import NextNeighborTable
 from customSocket.routing.neighbor_monitor import NeighborMonitor
 from customSocket.routing.routing_table import RoutingTable
+from customSocket.routing.routing_table_monitor import RoutingTableMonitor
 from customSocket.send_handlers import msg_handler, file_handler, ack_handler, no_ack_handler, heartbeat_handler, \
-    hello_handler
+    hello_handler, routing_update_handler
 from . import byteDecoder, config
 
 
@@ -72,13 +73,22 @@ class MySocket:
         # Hello Logic - After giving Hello IP/Ports Code, socket will run
         self.hello_list = self.handel_hello()
 
+        # Garbage Collector and File Assembler
+
         # Neighbor Monitoring Thread starten
-        monitor = NeighborMonitor(
+        neighbor_monitor = NeighborMonitor(
             self.neighbor_table,
             self.routing_table,
             on_routing_update=self.send_routing_update,  #Callback function
         )
-        monitor.start()
+        neighbor_monitor.start()
+
+        # Routing Table Monitor starten (überwacht poisoned routes)
+        routing_monitor = RoutingTableMonitor(
+            self.routing_table,
+            on_routing_update=self.send_routing_update  #Callback function
+        )
+        routing_monitor.start()
 
         # Heartbeat starten
         heartbeat = threading.Thread(target=self.send_heartbeats, daemon=True)
@@ -93,7 +103,7 @@ class MySocket:
         threading.Thread(target=self.handel_routing_incoming, daemon=True).start()
 
         # Send Loop Threads starten
-        for _ in range(1):
+        for _ in range(5):
             threading.Thread(target=self.send_loop, daemon=True).start()
 
         # Sender Thread starten
@@ -148,6 +158,7 @@ class MySocket:
 
     # ---------- Handels data which is not for you and needs routing ---
     def handel_routing_incoming(self):
+        routing_update_handler.send_routing_update(self)
         #TODO Handel routing mechanics -- Depends on the existence of Routing Tables etc
         print("Routing")
 
@@ -163,8 +174,8 @@ class MySocket:
 
     # --------- Handel routing/neigbor Updates ----------------------------------
     def send_routing_update(self):
-        print("[INFO] Routing Update triggered!")
-        # → hier baust du ROUTING_UPDATE und sendest an alle alive neighbors
+        routing_update_handler.send_routing_update(self)
+        print("[SENT] Routing Update")
 
     # --------- Send heartbeats ----------------------------------
     def send_heartbeats(self):
@@ -173,7 +184,7 @@ class MySocket:
             seqNum = self.get_seq_num()
             for entry in neighbors:
                 heartbeat_handler.send_heartbeat(self, seqNum, entry.ip, entry.port, self.my_ip_str, self.my_port)
-            print(f"\n[SENT]Heartbeats to: {neighbors}\n")
+            #print(f"\n[SENT]Heartbeats to: {neighbors}\n")
             time.sleep(config.HEARTBEAT_TIMER)
 
     # ====================================================================================================
@@ -230,6 +241,7 @@ class MySocket:
         queue_get = self.send_queue.get
 
         while True:
+            #print(self.send_queue.qsize())
             packet, addr = queue_get()
             send(packet, addr)
 

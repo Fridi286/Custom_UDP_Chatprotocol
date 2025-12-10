@@ -21,10 +21,11 @@ def open_terminal_mac(command: str):
 
 def main():
     # Pfad zur Python-Version im venv
-    VENV_PYTHON = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol/.venv/bin/python"
+    VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
 
 
     if platform.system() == "Windows":
+        VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
         open_terminal=open_terminal_win
         print("Running on Windows")
     elif platform.system() == "Darwin":
@@ -32,8 +33,8 @@ def main():
         open_terminal=open_terminal_mac
         print("Running on macOS")
 
-    ip = "127.0.0.1"
-    #ip = "10.8.3.3"
+    #ip = "127.0.0.1"
+    ip = "10.8.3.3"
 
     for i in range(3000, 3002):
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {i}')
