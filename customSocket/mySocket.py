@@ -30,16 +30,16 @@ class MySocket:
     # Constructor
     # ====================================================================================================
 
-    def __init__(self, my_ip, my_port):
-        self.my_ip = my_ip
+    def __init__(self, my_ip_str, my_port):
+        self.my_ip_str = my_ip_str
         self.my_port = my_port
 
-        self.my_ip_bytes = int(ipaddress.IPv4Address(my_ip)).to_bytes(4, "big")
+        self.my_ip_bytes = int(ipaddress.IPv4Address(my_ip_str)).to_bytes(4, "big")
         self.my_port_bytes = my_port.to_bytes(2, "big")
 
         self.sock = socket(AF_INET, SOCK_DGRAM)
         self.sock.bind((host, port))
-        print(f"\n[INFO] Listening on {my_ip}:{my_port}\n")
+        print(f"\n[INFO] Listening on {my_ip_str}:{my_port}\n")
         #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 * 1024 * 1024)
 
         # self.send_queue = Queue() #OLD
@@ -154,12 +154,12 @@ class MySocket:
     # ---------- Handels ACK and NOACK of data sent to you -
 
     def send_ack_frame(self, seq_num, src_ip, src_port):
-        ack_handler.send_ack(self, seq_num, src_ip, src_port, self.my_ip, self.my_port)
+        ack_handler.send_ack(self, seq_num, src_ip, src_port, self.my_ip_str, self.my_port)
 
     def send_noack_frame(self, key, missing_chunks):
         seq_num, src_ip, src_port = key
         print(f"[NOACK] missing {missing_chunks}")
-        no_ack_handler.send_no_ack(self, seq_num, src_ip, src_port, self.my_ip, self.my_port, missing_chunks)
+        no_ack_handler.send_no_ack(self, seq_num, src_ip, src_port, self.my_ip_str, self.my_port, missing_chunks)
 
     # --------- Handel routing/neigbor Updates ----------------------------------
     def send_routing_update(self):
@@ -172,7 +172,7 @@ class MySocket:
             neighbors = self.neighbor_table.get_alive_neighbors()
             seqNum = self.get_seq_num()
             for entry in neighbors:
-                heartbeat_handler.send_heartbeat(self, seqNum, entry.ip, entry.port, self.my_ip, self.my_port)
+                heartbeat_handler.send_heartbeat(self, seqNum, entry.ip, entry.port, self.my_ip_str, self.my_port)
             print(f"\n[SENT]Heartbeats to: {neighbors}\n")
             time.sleep(config.HEARTBEAT_TIMER)
 
@@ -193,7 +193,7 @@ class MySocket:
 
         for entry in neighbors:
             dest_ip, dest_port = entry
-            hello_handler.send_hello(self, self.get_seq_num(), dest_ip, int(dest_port), self.my_ip, self.my_port)
+            hello_handler.send_hello(self, self.get_seq_num(), dest_ip, int(dest_port), self.my_ip_str, self.my_port)
         return
 
     # ====================================================================================================
@@ -209,9 +209,9 @@ class MySocket:
                 msg = input("\nGib deine Nachricht ein (Wenn du eine Datei verschicken willst, gib \"Send Data\" ein): ")
                 seqNum = self.get_seq_num()
                 if msg.upper() == "SEND DATA":
-                    threading.Thread(target=file_handler.send_Data, args=(self, seqNum, msg, dest_ip, dest_port, self.my_ip, self.my_port), daemon=True).start()
+                    threading.Thread(target=file_handler.send_Data, args=(self, seqNum, msg, dest_ip, dest_port, self.my_ip_str, self.my_port), daemon=True).start()
                 else:
-                    threading.Thread(target=msg_handler.send_Text, args=(self, seqNum, msg, dest_ip, dest_port, self.my_ip, self.my_port), daemon=True).start()
+                    threading.Thread(target=msg_handler.send_Text, args=(self, seqNum, msg, dest_ip, dest_port, self.my_ip_str, self.my_port), daemon=True).start()
             except Exception as e:
                 print(e)
             time.sleep(3)
