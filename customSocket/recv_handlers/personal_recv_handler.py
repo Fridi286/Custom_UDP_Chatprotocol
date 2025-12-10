@@ -27,14 +27,27 @@ def handle_no_ack(mySocket, data, on_routing_update=None):
     print(f"\nRec NOACK for Seq: {seq_num}, missing chunk: {chunks}\n")
 
 # =========================================================
-#
+# Handling received HELLO
 # =========================================================
 def handle_hello(mySocket, data, on_routing_update):
-    src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
-    src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
+    src_ip = int.from_bytes(data[9: 13], "big")
+    src_port = int.from_bytes(data[15: 17], "big")
+
+    # Füge Nachbarn zur Neighbor-Tabelle hinzu oder aktualisiere ihn
     mySocket.neighbor_table.update_neighbor(src_ip, src_port)
+
+    # Erstelle eine direkte Route zum Nachbarn (Distance = 1)
+    mySocket.routing_table.update_route(
+        dest_ip=src_ip,
+        dest_port=src_port,
+        next_hop_ip=src_ip,
+        next_hop_port=src_port,
+        distance=1
+    )
+
+    # Triggere Routing Update an alle Nachbarn
     on_routing_update()
-    print("handle_hello")
+    print(f"[HELLO] Received from {src_ip}:{src_port}")
 
 # =========================================================
 # Handling received MSGs
@@ -49,7 +62,7 @@ def handle_msg(mySocket, data, on_routing_update=None):
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
           f"{msg.payload.text}\n")
 # =========================================================
-#
+# Handling received GOODBYE
 # =========================================================
 
 
@@ -98,21 +111,22 @@ def handle_file_info(mySocket, data, on_routing_update=None):
     return succ
 
 # =========================================================
-#
+# Handling received HEARTBEAT
 # =========================================================
 
 
 def handle_heartbeat(mySocket, data, on_routing_update=None):
-    src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
-    src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
+    src_ip = int.from_bytes(data[9: 13], "big")
+    src_port = int.from_bytes(data[15: 17], "big")
     mySocket.neighbor_table.update_neighbor(src_ip, src_port)
-    #print("handle_heartbeat")
+    #print(f"[HEARTBEAT] Received from {src_ip}:{src_port}")
 
 # =========================================================
-#
+# Handling received ROUTING_UPDATE
 # =========================================================
 
 
 def handle_routing_update(mySocket, data, on_routing_update=None):
     #TODO
+    #wir gehen alle empfangenen routen durch und senden an routing_table die updates der aktualisiert ggfs.
     print("handle_routing_update")

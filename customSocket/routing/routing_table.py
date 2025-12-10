@@ -13,7 +13,6 @@ class RoutingEntry(BaseModel):
 
 
 class RoutingTable:
-
     def __init__(self):
         # Key = (dest_ip, dest_port)
         self.table: Dict[Tuple[int, int], RoutingEntry] = {}
@@ -27,24 +26,53 @@ class RoutingTable:
                      next_hop_ip: int, next_hop_port: int, distance: int) -> bool:
         key = (dest_ip, dest_port)
 
+        if distance == 255:
+            self.table[key] = RoutingEntry(
+                dest_ip=dest_ip,
+                dest_port=dest_port,
+                next_hop_ip=next_hop_ip,
+                next_hop_port=next_hop_port,
+                distance=distance
+            )
+            return True
+
         existing = self.table.get(key)
-        # Szenario: Eintrag für IP/PORT existiert nicht
+
+        # Szenario A: Eintrag für IP/PORT existiert nicht
         if existing is None:
-            self.table[key] = RoutingEntry(dest_ip, dest_port, next_hop_ip, next_hop_port, distance)
+            self.table[key] = RoutingEntry(
+                dest_ip=dest_ip,
+                dest_port=dest_port,
+                next_hop_ip=next_hop_ip,
+                next_hop_port=next_hop_port,
+                distance=distance
+            )
             return True
 
-        # Szenario: Es gibt eine kürzere Distanz zu existierendem IP/PORT, über anderen HOP
+        # Szenario B: Es gibt eine kürzere Distanz zu existierendem IP/PORT, über anderen HOP
         if distance < existing.distance:
-            self.table[key] = RoutingEntry(dest_ip, dest_port, next_hop_ip, next_hop_port, distance)
+            self.table[key] = RoutingEntry(
+                dest_ip=dest_ip,
+                dest_port=dest_port,
+                next_hop_ip=next_hop_ip,
+                next_hop_port=next_hop_port,
+                distance=distance
+            )
             return True
 
-        # Szenario: Es gibt eine kürzere Distanz zu existierendem IP/PORT, bei gleichem HOP
+        # Szenario C: Es gibt eine Änderung bei gleichem HOP (Update/Wartung)
         if existing.next_hop_ip == next_hop_ip and existing.next_hop_port == next_hop_port:
             if existing.distance != distance:
-                existing.distance = distance
+                self.table[key] = RoutingEntry(
+                    dest_ip=dest_ip,
+                    dest_port=dest_port,
+                    next_hop_ip=next_hop_ip,
+                    next_hop_port=next_hop_port,
+                    distance=distance
+                )
                 return True
 
-        # Szenario: ignorieren
+        # Szenario D: ignorieren (längere Distanz über anderen HOP)
         return False
 
     def delete_routes_via(self, hop_ip: int, hop_port: int) -> bool:
