@@ -20,7 +20,11 @@ def send_Data(
         src_ip,
         src_port
 ):
-    path = input("Gib den Dateipfad der zu verschickenden Datei an: ")
+    if msg.upper() == "SEND DATA":
+        path = input("Gib den Dateipfad der zu verschickenden Datei an: ")
+    else:
+        path = msg
+
     if not os.path.exists(path):
         print("Pfad existiert nicht!")
         return
@@ -87,7 +91,8 @@ def send_Data(
 
         # Send Rest Frame
         if frame:
-            if not send_frame(mySocket, frame, seq_num):
+            frameID = 0
+            if not send_frame(mySocket, frame, seq_num, frameID):
                 return False
 
     print("transfer finished")

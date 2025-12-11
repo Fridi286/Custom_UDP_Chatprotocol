@@ -6,6 +6,7 @@ import threading
 import time
 from queue import Queue
 from queue import SimpleQueue
+from customSocket.chat_gui import ChatGUI
 
 
 
@@ -109,7 +110,11 @@ class MySocket:
             threading.Thread(target=self.send_loop, daemon=True).start()
 
         # Sender Thread starten
-        send_thread = threading.Thread(target=self.send_message, daemon=True)
+        # ALT:
+        # send_thread = threading.Thread(target=self.send_message, daemon=True)
+        # send_thread.start()
+        # NEU:
+        send_thread = threading.Thread(target=self.send_message_gui, daemon=True)
         send_thread.start()
 
         while True:
@@ -235,6 +240,11 @@ class MySocket:
             except Exception as e:
                 print(e)
             time.sleep(3)
+
+    def send_message_gui(self):
+
+        gui = ChatGUI(self)
+        gui.run()
 
     # ----------- Set Sequence Number ------------
     def get_seq_num(self):
