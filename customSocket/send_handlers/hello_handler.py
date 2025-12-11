@@ -28,9 +28,7 @@ def send_hello(
         )
 
     )
-    print(data)
     encoded_data = byteEncoder.encodePayload(data)
-    print(encoded_data)
     mySocket.send_queue.put((encoded_data, (str(ipaddress.IPv4Address(dest_ip)), dest_port)))
     print(f"Sent Hello to {dest_ip}:{dest_port}")
     return

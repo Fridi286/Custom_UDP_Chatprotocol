@@ -34,7 +34,7 @@ def main():
         print("Running on macOS")
 
     #ip = "127.0.0.1"
-    ip = "10.8.3.3"
+    ip = "10.8.3.4"
 
     for i in range(3000, 3002):
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {i}')

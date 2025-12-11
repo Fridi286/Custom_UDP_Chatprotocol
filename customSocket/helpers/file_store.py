@@ -202,3 +202,40 @@ class FileStore:
                 return True
 
         return False
+
+
+    def cleanup_stale_files(self):
+        #TODO
+        """
+        Scannt periodisch den FileStore nach veralteten Dateien.
+        Sollte in einem separaten Thread ausgeführt werden.
+        """
+        import time
+
+        while True:
+            time.sleep(3)  # Alle 3 Sekunden scannen
+
+            current_time = time.time()
+            stale_timeout = 5  # 5 Sekunden
+
+            with self.lock:
+                keys_to_process = []
+
+                for key, file in self.files.items():
+                    if current_time - file["last_update"] >= stale_timeout:
+                        keys_to_process.append(key)
+
+            # Verarbeitung außerhalb des Locks
+            for key in keys_to_process:
+                seq_num, src_ip, src_port = key
+
+                if self.is_complete(seq_num, src_ip, src_port):
+                    # File vollständig → assemblieren
+                    output_path = self.assemble_file(seq_num, src_ip, src_port)
+                    if output_path:
+                        print(f"Stale file assembled: {output_path}")
+                    self.remove_file(seq_num, src_ip, src_port)
+                else:
+                    # File unvollständig → löschen
+                    self.remove_file(seq_num, src_ip, src_port)
+                    print(f"Stale incomplete file removed: {key}")

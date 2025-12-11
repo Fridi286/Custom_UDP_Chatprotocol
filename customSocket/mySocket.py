@@ -74,6 +74,8 @@ class MySocket:
         self.hello_list = self.handel_hello()
 
         # Garbage Collector and File Assembler
+        file_cleaner = threading.Thread(target=self.file_store.cleanup_stale_files, daemon=True)
+        file_cleaner.start()
 
         # Neighbor Monitoring Thread starten
         neighbor_monitor = NeighborMonitor(

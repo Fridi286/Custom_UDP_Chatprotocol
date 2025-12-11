@@ -34,7 +34,7 @@ def handle_hello(mySocket, data, on_routing_update):
     src_port = int.from_bytes(data[15: 17], "big")
 
     # Füge Nachbarn zur Neighbor-Tabelle hinzu oder aktualisiere ihn
-    mySocket.neighbor_table.update_neighbor(src_ip, src_port)
+    mySocket.neighbor_table.update_neighbor(src_ip, src_port, mySocket)
 
     # Erstelle eine direkte Route zum Nachbarn (Distance = 1)
     mySocket.routing_table.update_route(
@@ -118,7 +118,7 @@ def handle_file_info(mySocket, data, on_routing_update=None):
 def handle_heartbeat(mySocket, data, on_routing_update=None):
     src_ip = int.from_bytes(data[9: 13], "big")
     src_port = int.from_bytes(data[15: 17], "big")
-    mySocket.neighbor_table.update_neighbor(src_ip, src_port)
+    mySocket.neighbor_table.update_neighbor(src_ip, src_port, mySocket)
     #print(f"[HEARTBEAT] Received from {src_ip}:{src_port}")
 
 # =========================================================
