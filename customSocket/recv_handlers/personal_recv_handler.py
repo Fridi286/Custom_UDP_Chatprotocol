@@ -2,7 +2,7 @@ import ipaddress
 
 from customSocket import byteDecoder
 from customSocket.helpers.models import NoAckMessage
-from customSocket.send_handlers import ack_handler
+from customSocket.send_handlers import send_ack_handler
 
 
 # =========================================================
@@ -58,7 +58,7 @@ def handle_msg(mySocket, data, on_routing_update=None):
     if not succ:
         print("Received Message with Wrong Checksum")
         return
-    ack_handler.send_ack(mySocket, msg.header.sequence_number, msg.header.source_ip, msg.header.source_port, mySocket.my_ip_str, mySocket.my_port)
+    send_ack_handler.send_ack(mySocket, msg.header.sequence_number, msg.header.source_ip, msg.header.source_port, mySocket.my_ip_str, mySocket.my_port)
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
           f"{msg.payload.text}\n")
 # =========================================================
@@ -126,7 +126,23 @@ def handle_heartbeat(mySocket, data, on_routing_update=None):
 # =========================================================
 
 
-def handle_routing_update(mySocket, data, on_routing_update=None):
-    #TODO
-    #wir gehen alle empfangenen routen durch und senden an routing_table die updates der aktualisiert ggfs.
-    print("handle_routing_update")
+def handle_routing_update(mySocket, data, on_routing_update):
+    routing_update, succ = byteDecoder.decodePayload(data)
+    if not succ: return False
+    next_hop_ip = routing_update.header.source_ip
+    next_hop_port = routing_update.header.source_port
+    entries = routing_update.payload.entries
+    changed = False
+    for entry in entries:
+        if mySocket.routing_table.update_route(
+                dest_ip=entry.dest_ip,
+                dest_port=entry.dest_port,
+                next_hop_ip=next_hop_ip,
+                next_hop_port=next_hop_port,
+                distance=entry.distance + 1
+        ):
+            changed = True
+
+    if changed: on_routing_update()
+
+    return True

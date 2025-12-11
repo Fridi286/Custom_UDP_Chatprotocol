@@ -6,19 +6,20 @@ import platform
 
 
 
-def open_terminal_win(command: str):
-    # /k = Fenster bleibt offen
-    subprocess.Popen(f'start cmd.exe /k "{command}"', shell=True)
+def open_terminal_win(command: str, title: str = "Terminal"):
+    subprocess.Popen(f'start "{title}" cmd.exe /k "{command}"', shell=True)
 
-def open_terminal_mac(command: str):
+
+def open_terminal_mac(command: str, title: str = "Terminal"):
     project_path = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol"
     apple_script = f'''
     tell application "Terminal"
-        do script "cd {project_path}; {command}"
+        do script "cd {project_path}; printf '\\033]0;{title}\\007'; {command}"
         activate
     end tell
     '''
     subprocess.Popen(["osascript", "-e", apple_script])
+
 
 
 def main():
@@ -39,9 +40,12 @@ def main():
 
     ip = local_ip
 
-    for i in range(3000, 3002):
-        open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {i}')
+    for i in range(3000, 3003):
+        port_number = i
+        title = f"Socket: {ip}/{port_number}"
+        open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {port_number}', title)
         time.sleep(0.01)
+
 
 if __name__ == "__main__":
     main()
