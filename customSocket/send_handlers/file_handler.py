@@ -79,8 +79,9 @@ def send_Data(
                 )
             )
             # Send Full Frame
-            if len(frame) == FRAME_SIZE + 1:
-                if not send_frame(mySocket, frame, seq_num):
+            if len(frame) == FRAME_SIZE:
+                frameID = chunk_id / FRAME_SIZE
+                if not send_frame(mySocket, frame, seq_num, frameID):
                     return False
                 frame = []
 
@@ -155,10 +156,13 @@ def send_check_file_info(mySocket, seq_num, dest_ip, src_ip, dest_port, src_port
 # This Method handels the sending / resending / Ack and No_Ack Handling of one Frame
 # ====================================================================================================
 
-def send_frame(mySocket, frame, seq_num) -> bool:
-    for _ in range(config.MAX_RETRIES):
+def send_frame(mySocket, frame, seq_num, frameID) -> bool:
+    for retry in range(config.MAX_RETRIES):
+        print(f"[RETRY {retry + 1}/{config.MAX_RETRIES}] Sende Frame: {frameID} seq={seq_num}")
+
         # 1. ACK schon da?
         if mySocket.ack_store.check_and_delete_ack(seq_num):
+            print(f"[ACK] Frame: {frameID}  seq={seq_num} erfolgreich bestätigt")
             return True
 
         # 2. Erstmal alle Chunks senden
@@ -167,23 +171,29 @@ def send_frame(mySocket, frame, seq_num) -> bool:
         # 3. Reset des Timers
         last_event_time = time.time()
         while True:
-
             # --------------- ACK angekommen? ---------------
             if mySocket.ack_store.check_and_delete_ack(seq_num):
+                print(f"[ACK] Frame: {frameID}  seq={seq_num} erfolgreich bestätigt")
                 return True
+
             # --------------- NoAck angekommen? --------------
             missing = mySocket.noack_store.get_and_delete_missing(seq_num)
             if missing:
+                print(f"[NOACK] Empfangen bei Frame: {frameID}  für seq={seq_num}, fehlende Chunks: {missing}")
                 send_missing_chunks(mySocket, frame, missing)
-                last_event_time = time.time()  # Timer reset
+                last_event_time = time.time()
                 continue
+
             # --------------- Timeout prüfen ------------------------
-            if time.time() - last_event_time >= 5:
+            if time.time() - last_event_time >= config.WAIT_FOR_ACK_TIME:
+                print(f"[TIMEOUT] Frame: {frameID}  seq={seq_num} nach {config.WAIT_FOR_ACK_TIME}s")
                 break
 
             time.sleep(0.01)
-    # reached max retries return False transfer failed
+
+    print(f"[FAILED] Frame: {frameID}  seq={seq_num} nach {config.MAX_RETRIES} Versuchen")
     return False
+
 
 # ------------- Helpers for send_frame -------------
 

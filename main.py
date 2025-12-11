@@ -1,7 +1,9 @@
+import socket
 import subprocess
 import sys
 import time
 import platform
+
 
 
 def open_terminal_win(command: str):
@@ -23,6 +25,8 @@ def main():
     # Pfad zur Python-Version im venv
     VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
 
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
 
     if platform.system() == "Windows":
         VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
@@ -33,8 +37,7 @@ def main():
         open_terminal=open_terminal_mac
         print("Running on macOS")
 
-    #ip = "127.0.0.1"
-    ip = "10.8.3.4"
+    ip = local_ip
 
     for i in range(3000, 3002):
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {i}')

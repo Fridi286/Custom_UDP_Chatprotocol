@@ -90,6 +90,10 @@ class FileStore:
             frame = file["frames"][frame_id]
             frame["received"].add(chunk_id)
 
+            if frame["timer"]:
+                frame["timer"].cancel()
+                frame["timer"] = None
+
             # Frame Grenzen bestimmen
             frame_start = frame_id * self.frame_size
             frame_end = min(frame_start + self.frame_size, file["total_chunks"])
@@ -101,6 +105,10 @@ class FileStore:
                 if frame["timer"]:
                     frame["timer"].cancel()
                     frame["timer"] = None
+
+                if len(file["received"]) == file["total_chunks"]:
+                    self.assemble_file(seq_num, src_ip, src_port)
+
 
                 if self.on_frame_complete:
                     # Callback on_frame_complete
@@ -213,15 +221,16 @@ class FileStore:
         import time
 
         while True:
-            time.sleep(3)  # Alle 3 Sekunden scannen
+            time.sleep(15)  # Alle 3 Sekunden scannen
 
             current_time = time.time()
-            stale_timeout = 5  # 5 Sekunden
+            stale_timeout = 60  # 5 Sekunden
 
             with self.lock:
                 keys_to_process = []
 
                 for key, file in self.files.items():
+                    print(f"Current: {current_time} and last_update: {file["last_update"]}")
                     if current_time - file["last_update"] >= stale_timeout:
                         keys_to_process.append(key)
 

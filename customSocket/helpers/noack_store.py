@@ -11,8 +11,10 @@ class NoAckStore:
         # Führt neue fehlende Chunks mit bestehenden zusammen
         with self._lock:
             if seq_num not in self._noacks:
+                print("added new to noack list")
                 self._noacks[seq_num] = missing_chunks.copy()
             else:
+                print("added to noack list")
                 # Zusammenführen ohne Duplikate
                 existing = set(self._noacks[seq_num])
                 for c in missing_chunks:
@@ -20,6 +22,7 @@ class NoAckStore:
                 self._noacks[seq_num] = sorted(existing)
 
     def get_and_delete_missing(self, seq_num: int) -> List[int] | None:
+        #print("Got ask of no ack list")
         # Gibt die fehlenden Chunks für seq_num zurück und löscht den Eintrag danach.
         with self._lock:
             return self._noacks.pop(seq_num, None)

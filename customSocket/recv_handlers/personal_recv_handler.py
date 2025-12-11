@@ -88,7 +88,7 @@ def handle_file_chunk(mySocket, data, on_routing_update=None):
         file_chunk.header.chunk_id,
         file_chunk.payload.data
     )
-    print(f"Got: {file_chunk.header.chunk_id}")
+    #print(f"Got: {file_chunk.header.chunk_id}")
     #print("handle_file_chunk")
     return succ
 
