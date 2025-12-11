@@ -26,13 +26,13 @@ class RoutingTable:
                      next_hop_ip: int, next_hop_port: int, distance: int) -> bool:
         key = (dest_ip, dest_port)
 
-        if distance == 255:
+        if distance == 256: # 256 bc we add +1 to distance but 256 is too hgigh for distance
             self.table[key] = RoutingEntry(
                 dest_ip=dest_ip,
                 dest_port=dest_port,
                 next_hop_ip=next_hop_ip,
                 next_hop_port=next_hop_port,
-                distance=distance
+                distance=255
             )
             return True
 

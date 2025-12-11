@@ -129,6 +129,7 @@ def handle_heartbeat(mySocket, data, on_routing_update=None):
 def handle_routing_update(mySocket, data, on_routing_update):
     routing_update, succ = byteDecoder.decodePayload(data)
     if not succ: return False
+    print(routing_update.payload)
     next_hop_ip = routing_update.header.source_ip
     next_hop_port = routing_update.header.source_port
     entries = routing_update.payload.entries

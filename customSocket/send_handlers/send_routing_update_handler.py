@@ -43,8 +43,11 @@ def send_routing_update(mySocket):
             if route.next_hop_ip == neighbor_ip and route.next_hop_port == neighbor_port:
                 continue  # Route wird NICHT gesendet (Split Horizon)
 
+            is_dest_dead = False
             # Prüfe ob das Ziel ein toter Nachbar ist
-            is_dest_dead = not mySocket.neighbor_table.is_alive(dest_ip, dest_port)
+            if mySocket.neighbor_table.is_neighbor(dest_ip, dest_port):
+                is_dest_dead = not mySocket.neighbor_table.is_alive(dest_ip, dest_port)
+
 
             if is_dest_dead:
                 # Poison Reverse: Tote Nachbarn mit Distance 255 markieren
@@ -99,8 +102,7 @@ def send_routing_update(mySocket):
             (str(ipaddress.IPv4Address(neighbor_ip)), neighbor_port)
         ))
 
-        print(f"[SENT] Routing Update to {ipaddress.IPv4Address(neighbor_ip)}:{neighbor_port} "
-              f"with {len(entries_for_neighbor)} entries")
+        #print(f"[SENT] Routing Update to {ipaddress.IPv4Address(neighbor_ip)}:{neighbor_port} with {len(entries_for_neighbor)} entries")
 
     return
 

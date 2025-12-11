@@ -183,12 +183,11 @@ class MySocket:
     # --------- Handel routing/neigbor Updates ----------------------------------
     def send_routing_update(self):
         send_routing_update_handler.send_routing_update(self)
-        print("[SENT] Routing Update")
 
     # --------- Send heartbeats ----------------------------------
     def send_heartbeats(self):
         while True:
-            print(self.routing_table.export_for_update())
+            #print(self.routing_table.export_for_update())
             neighbors = self.neighbor_table.get_alive_neighbors()
             seqNum = self.get_seq_num()
             send_routing_update_handler.send_routing_update(self)

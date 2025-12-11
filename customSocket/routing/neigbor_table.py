@@ -21,6 +21,10 @@ class NextNeighborTable:
         # Key = (ip, port)
         self.neighbors: Dict[Tuple[int, int], NeighborEntry] = {}
 
+    def is_neighbor(self, ip: int, port: int):
+        return self.neighbors.get((ip, port))
+
+
     def update_neighbor(self, ip: int, port: int, mySocket):
         """
         Wird bei jedem HEARTBEAT, HELLO oder jedem Paket des Nachbarn aufgerufen.
