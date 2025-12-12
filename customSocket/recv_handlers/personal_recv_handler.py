@@ -1,8 +1,9 @@
 import ipaddress
+import time
 
 from customSocket import byteDecoder
 from customSocket.helpers.models import NoAckMessage
-from customSocket.send_handlers import send_ack_handler
+from customSocket.send_handlers import send_ack_handler, send_heartbeat_handler
 
 
 # =========================================================
@@ -41,6 +42,8 @@ def handle_hello(mySocket, data, on_routing_update):
         next_hop_port=src_port,
         distance=1
     )
+
+    send_heartbeat_handler.send_heartbeat(mySocket, mySocket.get_seq_num(), src_ip, src_port, mySocket.my_ip_str, mySocket.my_port)
 
     # Triggere Routing Update an alle Nachbarn
     on_routing_update()
@@ -81,16 +84,18 @@ def handle_goodbye(mySocket, data, on_routing_update):
 def handle_file_chunk(mySocket, data, on_routing_update=None):
     file_chunk, succ = byteDecoder.decodePayload(data)
     if not succ: return False
+    chunk_id = file_chunk.header.chunk_id
+    seq_num = file_chunk.header.sequence_number
     succ = mySocket.file_store.add_chunk(
-        file_chunk.header.sequence_number,
+        seq_num,
         file_chunk.header.source_ip,
         file_chunk.header.source_port,
-        file_chunk.header.chunk_id,
+        chunk_id,
         file_chunk.payload.data
     )
+
+
     mySocket.neighbor_table.update_neighbor(file_chunk.header.source_ip, file_chunk.header.source_port, mySocket)
-    #print(f"Got: {file_chunk.header.chunk_id}")
-    #print("handle_file_chunk")
     return succ
 
 # =========================================================
@@ -108,6 +113,20 @@ def handle_file_info(mySocket, data, on_routing_update=None):
         file_info.payload.filename,
         file_info.header.chunk_length
     )
+    # Download-Fenster erstellen
+    if hasattr(mySocket, 'gui') and mySocket.gui:
+        src_ip = str(ipaddress.IPv4Address(file_info.header.source_ip))
+        src_port = file_info.header.source_port
+
+        download_window = mySocket.gui.create_download_window(
+            src_ip, src_port, file_info.payload.filename, file_info.header.chunk_length
+        )
+
+        if not hasattr(mySocket.file_store, 'download_windows'):
+            mySocket.file_store.download_windows = {}
+
+        mySocket.file_store.download_windows[file_info.header.sequence_number] = download_window
+
     print(f"[RECV] File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
     return succ
 

@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import queue
 import time
@@ -10,7 +11,7 @@ from customSocket import config
 
 class FileStore:
 
-    def __init__(self, on_frame_complete, on_frame_timeout):
+    def __init__(self, on_frame_complete, on_frame_timeout, mySocket):
         """
         on_frame_complete(file_key)  ruft mySocket ACK-Funktion
         on_frame_timeout(file_key, missing_chunks)  ruft mySocket NO_ACK-Funktion
@@ -19,6 +20,8 @@ class FileStore:
         self.ack_queue = queue.SimpleQueue()
         self.noack_queue = queue.SimpleQueue()
         self.file_complete_queue = queue.SimpleQueue()
+
+        self.mySocket = mySocket
 
         self.files = {}
         self.lock = Lock()
@@ -81,7 +84,6 @@ class FileStore:
     # ADD CHUNK (MIT FRAME LOGIK)
     # ============================================================
     def add_chunk(self, seq_num, src_ip, src_port, chunk_id, data):
-        start = time.perf_counter()
         key = (seq_num, src_ip, src_port)
 
         frame_completed = False
@@ -128,12 +130,16 @@ class FileStore:
         # Callbacks außerhalb des Locks
         if frame_completed:
             self.ack_queue.put(key)
+            if hasattr(self, 'download_windows'):
+                if seq_num in self.download_windows:
+                    self.download_windows[seq_num].add_chunk(chunk_id)
 
         if file_completed:
+            if hasattr(self, 'download_windows'):
+                if seq_num in self.download_windows:
+                    self.download_windows[seq_num].add_chunk(chunk_id)
+                    self.download_windows[seq_num].finish_download()
             self.assemble_file(key)
-
-        if chunk_id % 50 == 0:
-            print(f"add_chunk: {time.perf_counter() - start:.6f}s")
 
         return True
 
@@ -240,6 +246,12 @@ class FileStore:
         with open(output_path, "wb") as f:
             f.write(data)
 
+
+        #for GUI
+        if hasattr(self.mySocket, 'gui') and self.mySocket.gui:
+            seq_num, src_ip, src_port = key
+            self.mySocket.gui.add_file_received(str(ipaddress.IPv4Address(src_ip)), src_port, output_path)
+
         return str(output_path)
 
     def remove_file(self, seq_num, src_ip, src_port):
@@ -251,41 +263,3 @@ class FileStore:
                 return True
 
         return False
-
-
-    def cleanup_stale_files(self):
-        #TODO
-        """
-        Scannt periodisch den FileStore nach veralteten Dateien.
-        Sollte in einem separaten Thread ausgeführt werden.
-        """
-        import time
-
-        while True:
-            time.sleep(15)  # Alle 3 Sekunden scannen
-
-            current_time = time.time()
-            stale_timeout = 60  # 5 Sekunden
-
-            with self.lock:
-                keys_to_process = []
-
-                for key, file in self.files.items():
-                    print(f"Current: {current_time} and last_update: {file["last_update"]}")
-                    if current_time - file["last_update"] >= stale_timeout:
-                        keys_to_process.append(key)
-
-            # Verarbeitung außerhalb des Locks
-            for key in keys_to_process:
-                seq_num, src_ip, src_port = key
-
-                if self.is_complete(seq_num, src_ip, src_port):
-                    # File vollständig → assemblieren
-                    output_path = self.assemble_file(seq_num, src_ip, src_port)
-                    if output_path:
-                        print(f"Stale file assembled: {output_path}")
-                    self.remove_file(seq_num, src_ip, src_port)
-                else:
-                    # File unvollständig → löschen
-                    self.remove_file(seq_num, src_ip, src_port)
-                    print(f"Stale incomplete file removed: {key}")

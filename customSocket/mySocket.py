@@ -61,7 +61,8 @@ class MySocket:
         # storage for all files that the user receives
         self.file_store = FileStore(
             on_frame_complete=self.send_ack_frame,  #Callback function
-            on_frame_timeout=self.send_noack_frame  #Callback function
+            on_frame_timeout=self.send_noack_frame,  #Callback function
+            mySocket=self,
         )
 
         # Sequence Number Producer
@@ -110,7 +111,7 @@ class MySocket:
         threading.Thread(target=self.handel_routing_incoming, daemon=True).start()
 
         # Send Loop Threads starten
-        for _ in range(5):
+        for _ in range(2):
             threading.Thread(target=self.send_loop, daemon=True).start()
 
         # Sender Thread starten

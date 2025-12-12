@@ -1,3 +1,5 @@
+import os
+import subprocess
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
 import threading
@@ -204,5 +206,157 @@ class ChatGUI:
             except Exception as e:
                 messagebox.showerror("Fehler", f"Fehler beim Senden: {e}")
 
+
+    # Am Ende der ChatGUI-Klasse hinzufügen:
+    def add_file_received(self, sender_ip, sender_port, file_path):
+        """Fügt eine Benachrichtigung über eine empfangene Datei mit anklickbarem Link hinzu"""
+        file_dir = os.path.dirname(os.path.abspath(file_path))
+        file_name = os.path.basename(file_path)
+
+        self.msg_display.configure(state='normal')
+
+        # Nachricht mit Link einfügen
+        start_pos = self.msg_display.index(tk.END + "-1c")
+        msg_text = f"[{sender_ip}:{sender_port}] Datei empfangen: {file_name}\n"
+        link_text = "📁 Ordner öffnen\n"
+
+        self.msg_display.insert(tk.END, msg_text)
+        self.msg_display.insert(tk.END, link_text)
+
+        # Link formatieren und klickbar machen
+        link_start = f"{start_pos}+{len(msg_text)}c"
+        link_end = f"{link_start}+{len(link_text) - 1}c"
+
+        tag_name = f"link_{file_dir}"
+        self.msg_display.tag_add(tag_name, link_start, link_end)
+        self.msg_display.tag_config(tag_name, foreground="blue", underline=True)
+        self.msg_display.tag_bind(tag_name, "<Button-1>",
+                                  lambda e: self._open_folder(file_dir))
+        self.msg_display.tag_bind(tag_name, "<Enter>",
+                                  lambda e: self.msg_display.config(cursor="hand2"))
+        self.msg_display.tag_bind(tag_name, "<Leave>",
+                                  lambda e: self.msg_display.config(cursor=""))
+
+        self.msg_display.see(tk.END)
+        self.msg_display.configure(state='disabled')
+
+    def _open_folder(self, folder_path):
+        """Öffnet den Ordner im Explorer"""
+        try:
+            if os.name == 'nt':  # Windows
+                os.startfile(folder_path)
+            elif os.name == 'posix':  # Linux/Mac
+                subprocess.Popen(['xdg-open', folder_path])
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Ordner konnte nicht geöffnet werden: {e}")
+
+    def create_download_window(self, sender_ip, sender_port, file_name, total_chunks):
+        """Erstellt ein neues Download-Fenster"""
+        download_window = FileDownloadWindow(self.root, sender_ip, sender_port, file_name, total_chunks)
+        return download_window
+
     def run(self):
         self.root.mainloop()
+
+
+import time
+
+
+class FileDownloadWindow:
+    def __init__(self, parent, sender_ip, sender_port, file_name, total_chunks):
+        self.window = tk.Toplevel(parent)
+        self.window.title("Datei-Download")
+        self.window.geometry("400x200")
+
+        self.total_chunks = total_chunks
+        self.auto_close_timer = None
+
+        # Zeittracking
+        self.start_time = time.time()
+        self.last_chunk_id = 0
+        self.last_update_time = self.start_time
+
+        # Widgets erstellen
+        info_frame = ttk.Frame(self.window, padding="10")
+        info_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(info_frame, text=f"Empfange Datei von {sender_ip}:{sender_port}").pack(pady=5)
+        ttk.Label(info_frame, text=f"Datei: {file_name}").pack(pady=5)
+
+        # Progressbar
+        self.progress = ttk.Progressbar(info_frame, length=350, mode='determinate', maximum=total_chunks)
+        self.progress.pack(pady=10)
+
+        # Status-Label
+        self.status_label = ttk.Label(info_frame, text=f"0 / {total_chunks} Chunks")
+        self.status_label.pack(pady=5)
+
+        # Zeit-Label
+        self.time_label = ttk.Label(info_frame, text="Geschätzte Restzeit: Berechne...")
+        self.time_label.pack(pady=5)
+
+    def add_chunk(self, chunk_id):
+        """Aktualisiert den Fortschritt basierend auf der aktuellen Chunk-ID"""
+        current_time = time.time()
+
+        # Fortschritt aktualisieren
+        self.progress['value'] = chunk_id
+        self.status_label.config(text=f"{chunk_id} / {self.total_chunks} Chunks")
+
+        # Restzeit berechnen (nur wenn wir Fortschritt haben)
+        if chunk_id > 0 and chunk_id > self.last_chunk_id:
+            elapsed_time = current_time - self.start_time
+            chunks_per_second = chunk_id / elapsed_time
+
+            remaining_chunks = self.total_chunks - chunk_id
+
+            if chunks_per_second > 0:
+                estimated_seconds = remaining_chunks / chunks_per_second
+                time_str = self._format_time(estimated_seconds)
+                self.time_label.config(text=f"Geschätzte Restzeit: {time_str}")
+            else:
+                self.time_label.config(text="Geschätzte Restzeit: Berechne...")
+
+        self.last_chunk_id = chunk_id
+        self.last_update_time = current_time
+
+        # Bei Fertigstellung
+        if chunk_id >= self.total_chunks:
+            self.finish_download()
+
+        self.window.update_idletasks()
+
+    def _format_time(self, seconds):
+        """Formatiert Sekunden in lesbares Format"""
+        if seconds < 1:
+            return "< 1 Sekunde"
+        elif seconds < 60:
+            return f"{int(seconds)} Sekunden"
+        elif seconds < 3600:
+            minutes = int(seconds / 60)
+            secs = int(seconds % 60)
+            return f"{minutes}m {secs}s"
+        else:
+            hours = int(seconds / 3600)
+            minutes = int((seconds % 3600) / 60)
+            return f"{hours}h {minutes}m"
+
+    def finish_download(self, success=True):
+        """Schließt das Fenster nach Download-Abschluss"""
+        if success:
+            total_time = time.time() - self.start_time
+            time_str = self._format_time(total_time)
+            self.status_label.config(text="Download abgeschlossen!", foreground="green")
+            self.time_label.config(text=f"Gesamtzeit: {time_str}")
+        else:
+            self.status_label.config(text="Download abgebrochen!", foreground="red")
+            self.time_label.config(text="")
+
+        self.window.update_idletasks()
+        self.auto_close_timer = self.window.after(5000, self.close)
+
+    def close(self):
+        """Schließt das Fenster"""
+        if self.auto_close_timer:
+            self.window.after_cancel(self.auto_close_timer)
+        self.window.destroy()

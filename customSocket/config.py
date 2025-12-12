@@ -5,8 +5,8 @@ FRAME_SIZE = 128
 TTL_DEFAULT = 64
 
 MAX_RETRIES = 3                 # Wie oft wir bei keinem ACK oder NOACK eine Message neu senden
-FRAME_WAIT_TIME = 1             # Beim reveiver Zeit die wir bei einem Frame warten auf ein ACK bis wir neu senden
-WAIT_FOR_ACK_TIME = 20           # Zeit die wir bei MSG oder File_Info auf ein ACK warten
+FRAME_WAIT_TIME = 0.3             # Beim reveiver Zeit die wir bei einem Frame warten bis wir noack schicken
+WAIT_FOR_ACK_TIME = 5           # Zeit die wir bei MSG oder File_Info auf ein ACK warten
 
 HEARTBEAT_TIMER = 3             # Wie oft wir heartbeats senden
 
