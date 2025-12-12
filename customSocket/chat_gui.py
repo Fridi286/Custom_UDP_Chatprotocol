@@ -6,6 +6,8 @@ import threading
 import queue
 import ipaddress
 
+from customSocket import config
+
 
 class ChatGUI:
     def __init__(self, my_socket):
@@ -297,11 +299,17 @@ class FileDownloadWindow:
 
     def add_chunk(self, chunk_id):
         """Aktualisiert den Fortschritt basierend auf der aktuellen Chunk-ID"""
+        CHUNK_SIZE = config.CHUNK_SIZE
+
         current_time = time.time()
+
+        # Größe berechnen
+        current_size_mb = (chunk_id * CHUNK_SIZE) / (1024 * 1024)
+        total_size_mb = (self.total_chunks * CHUNK_SIZE) / (1024 * 1024)
 
         # Fortschritt aktualisieren
         self.progress['value'] = chunk_id
-        self.status_label.config(text=f"{chunk_id} / {self.total_chunks} Chunks")
+        self.status_label.config(text=f"{current_size_mb:.2f} MB / {total_size_mb:.2f} MB")
 
         # Restzeit berechnen (nur wenn wir Fortschritt haben)
         if chunk_id > 0 and chunk_id > self.last_chunk_id:
