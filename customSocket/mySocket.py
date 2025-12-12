@@ -171,7 +171,6 @@ class MySocket:
             dest_ip = int.from_bytes(data[5:9])
             dest_port = int.from_bytes(data[13: 15])
             self.send_queue.put((data, (str(ipaddress.IPv4Address(dest_ip)), dest_port)))
-            print(f"Routing: {data}")
 
 
 

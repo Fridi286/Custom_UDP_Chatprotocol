@@ -10,8 +10,6 @@ from customSocket.send_handlers import send_ack_handler
 # =========================================================
 def handle_ack(mySocket, data, on_routing_update=None):
     mySocket.ack_store.add_ack(int.from_bytes(data[1: 5], "big"))
-    print(f"\nRec Ack for Seq: {data[1: 5]}")
-
 # =========================================================
 #
 # =========================================================
@@ -24,7 +22,6 @@ def handle_no_ack(mySocket, data, on_routing_update=None):
     seq_num = pld.sequence_number
     chunks = pld.missing_chunks
     mySocket.noack_store.add_noack(seq_num, chunks)
-    print(f"\nRec NOACK for Seq: {seq_num}, missing chunk: {chunks}\n")
 
 # =========================================================
 # Handling received HELLO
@@ -88,6 +85,7 @@ def handle_file_chunk(mySocket, data, on_routing_update=None):
         file_chunk.header.chunk_id,
         file_chunk.payload.data
     )
+    mySocket.neighbor_table.update_neighbor(file_chunk.header.source_ip, file_chunk.header.source_port, mySocket)
     #print(f"Got: {file_chunk.header.chunk_id}")
     #print("handle_file_chunk")
     return succ
@@ -107,7 +105,7 @@ def handle_file_info(mySocket, data, on_routing_update=None):
         file_info.payload.filename,
         file_info.header.chunk_length
     )
-    print(f"Got File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
+    print(f"[RECV] File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
     return succ
 
 # =========================================================

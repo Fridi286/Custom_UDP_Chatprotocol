@@ -40,7 +40,7 @@ def main():
 
     ip = local_ip
 
-    for i in range(3000, 3002):
+    for i in range(3000, 3005):
         port_number = i
         title = f"Socket: {ip}/{port_number}"
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {port_number}', title)

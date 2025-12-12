@@ -213,7 +213,7 @@ def send_missing_chunks(mySocket, frame, missing):
     for missing_chunk in missing:
         for chunk in frame:
             if chunk.header.chunk_id == missing_chunk:
-                print(f"Re-Sent: {chunk.header.chunk_id}")
+                #print(f"Re-Sent: {chunk.header.chunk_id}")
                 dest_ip_str = str(ipaddress.IPv4Address(chunk.header.destination_ip))
                 mySocket.send_queue.put((byteEncoder.encodePayload(chunk), (dest_ip_str, chunk.header.destination_port)))
 

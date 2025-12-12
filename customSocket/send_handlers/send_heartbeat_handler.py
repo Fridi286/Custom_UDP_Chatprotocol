@@ -29,7 +29,7 @@ def send_heartbeat(
         )
     )
     encoded_data = byteEncoder.encodePayload(data)
-    mySocket.send_queue.put((encoded_data, (str(ipaddress.IPv4Address(dest_ip)), dest_port)))
+    mySocket.sock.sendto(encoded_data, (str(ipaddress.IPv4Address(dest_ip)), dest_port))
     #print(f"Sent Heartbeat to {dest_ip}:{dest_port}")
 
     return

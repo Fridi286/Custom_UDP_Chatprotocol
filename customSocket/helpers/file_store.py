@@ -1,4 +1,5 @@
 import os
+import queue
 import time
 import threading
 from pathlib import Path
@@ -15,6 +16,10 @@ class FileStore:
         on_frame_timeout(file_key, missing_chunks)  ruft mySocket NO_ACK-Funktion
         """
 
+        self.ack_queue = queue.SimpleQueue()
+        self.noack_queue = queue.SimpleQueue()
+        self.file_complete_queue = queue.SimpleQueue()
+
         self.files = {}
         self.lock = Lock()
 
@@ -25,6 +30,21 @@ class FileStore:
         # Frame settings
         self.frame_size = config.FRAME_SIZE
         self.frame_wait_time = config.FRAME_WAIT_TIME
+
+        threading.Thread(
+            target=self.frame_timeout_watcher,
+            daemon=True
+        ).start()
+
+        threading.Thread(
+            target=self.ack_worker,
+            daemon=True
+        ).start()
+
+        threading.Thread(
+            target=self.noack_worker,
+            daemon=True
+        ).start()
 
     # ============================================================
     # FILE INFO
@@ -45,8 +65,8 @@ class FileStore:
                 "total_frames": total_frames,
                 "received": {},     # chunk_id → bytes
                 "frames": {},       # frame_id → {"received": set(), "timer": None}
-                "created_at": time.time(),
-                "last_update": time.time(),
+                "created_at": time.monotonic(),
+                "last_update": time.monotonic(),
             }
 
         threading.Thread(
@@ -61,118 +81,121 @@ class FileStore:
     # ADD CHUNK (MIT FRAME LOGIK)
     # ============================================================
     def add_chunk(self, seq_num, src_ip, src_port, chunk_id, data):
-        print(f"[RECV] Chunk - SEQ_NUM: {seq_num} - CHUNKID: {chunk_id}")
+        start = time.perf_counter()
         key = (seq_num, src_ip, src_port)
+
+        frame_completed = False
+        file_completed = False
+        frame_id = chunk_id // self.frame_size
 
         with self.lock:
             file = self.files.get(key)
             if not file:
-                print(f"[ERROR] No existing File for: Chunk - SEQ_NUM: {seq_num} - CHUNKID: {chunk_id}")
                 return False
 
-            # Duplikat?
             if chunk_id in file["received"]:
-                print(f"[INFO] Already received - Skipping: Chunk - SEQ_NUM: {seq_num} - CHUNKID: {chunk_id}")
                 return False
 
             # Chunk speichern
             file["received"][chunk_id] = data
-            file["last_update"] = time.time()
-            print(f"[INFO] Chunk added to File: Chunk - SEQ_NUM: {seq_num} - CHUNKID: {chunk_id}")
+            file["last_update"] = time.monotonic()
 
-            # Zugehörigen Frame bestimmen
-            frame_id = chunk_id // self.frame_size
+            # Frame initialisieren
+            frame = file["frames"].get(frame_id)
+            if not frame:
+                frame_start = frame_id * self.frame_size
+                frame_end = min(frame_start + self.frame_size, file["total_chunks"])
 
-            # Frame-Struktur anlegen, falls noch nicht da
-            if frame_id not in file["frames"]:
-                file["frames"][frame_id] = {
-                    "received": set(),
-                    "timer": None,
+                frame = {
+                    "received_count": 0,
+                    "expected": frame_end - frame_start,
+                    "last_update": time.monotonic(),
+                    "completed": False
                 }
+                file["frames"][frame_id] = frame
 
-            frame = file["frames"][frame_id]
-            frame["received"].add(chunk_id)
-            print(f"[INFO] ChunkID: {chunk_id} added to Frame: {frame_id}")
+            # Frame updaten
+            frame["received_count"] += 1
+            frame["last_update"] = time.monotonic()
 
-            # Falls es einen laufenden Timer für diesen Frame gibt, stoppen
-            print(f"[INFO] Chunk received, cur Time: {frame["timer"]}")
-            if frame["timer"]:
-                frame["timer"].cancel()
-                frame["timer"] = None
+            if not frame["completed"] and frame["received_count"] == frame["expected"]:
+                frame["completed"] = True
+                frame_completed = True
 
-            # Frame-Grenzen berechnen
-            frame_start = frame_id * self.frame_size
-            frame_end = min(frame_start + self.frame_size, file["total_chunks"])
-            expected_chunks = frame_end - frame_start
+            if len(file["received"]) == file["total_chunks"]:
+                file_completed = True
 
-            print(f"[INFO] Frame received: {len(frame["received"])} chunks | Expected: {expected_chunks}")
+        # Callbacks außerhalb des Locks
+        if frame_completed:
+            self.ack_queue.put(key)
 
-            # Ist der Frame vollständig?
-            if len(frame["received"]) == expected_chunks:
-                print(f"[INFO] Frame completed")
-                # ACK für kompletten Frame senden
-                print(f"[INFO] Give call to send ACK for Seq_Num: {seq_num} to {src_ip}/{src_port}")
-                seq_num, src_ip, src_port = key
-                threading.Thread(
-                    target=self.on_frame_complete,
-                    args=(seq_num, src_ip, src_port),
-                    daemon=True
-                ).start()
-                # Datei ggf. komplett?
-                if len(file["received"]) == file["total_chunks"]:
-                    print(f"[INFO] File completed -> Assembling")
-                    print(f"Assembled file in: {self.assemble_file(seq_num, src_ip, src_port)}")
+        if file_completed:
+            self.assemble_file(key)
 
-            else:
-                print(f"[INFO] Frame not completed restarting timer, cur Time: {frame["timer"]}")
-                # Frame noch nicht vollständig → neuen Timer starten
-                frame["timer"] = threading.Timer(
-                    self.frame_wait_time,
-                    self._frame_timeout,
-                    args=(key, frame_id)
-                )
-                frame["timer"].start()
-                print(f"[INFO] Timer resetted, cur Time: {frame["timer"]}")
+        if chunk_id % 50 == 0:
+            print(f"add_chunk: {time.perf_counter() - start:.6f}s")
 
         return True
 
     # ============================================================
-    # INTERNAL: FRAME TIMEOUT - NO_ACK
+    # frame_timeout_watcher
     # ============================================================
-    def _frame_timeout(self, file_key, frame_id):
 
-        with self.lock:
-            file = self.files.get(file_key)
-            if not file:
-                return
+    def frame_timeout_watcher(self):
+        while True:
+            now = time.monotonic()
+            expired = []
 
-            frame = file["frames"].get(frame_id)
-            if not frame:
-                return
+            with self.lock:
+                for key, file in self.files.items():
+                    for frame_id, frame in file["frames"].items():
+                        if frame["completed"]:
+                            continue
+                        if now - frame["last_update"] >= self.frame_wait_time:
+                            expired.append((key, frame_id))
+                            frame["last_update"] = now
 
-            # Prüfe, ob dieser Timer noch aktiv ist
-            # (könnte bereits durch neuen Chunk ersetzt worden sein)
-            current_timer = threading.current_thread()
-            if frame["timer"] != current_timer and frame["timer"] is not None:
-                return  # Timer wurde bereits durch neuen ersetzt
+            for key, frame_id in expired:
+                self.noack_queue.put((key, frame_id))
 
-            # Frame-Größe berechnen
-            frame_start = frame_id * self.frame_size
-            frame_end = min(frame_start + self.frame_size, file["total_chunks"])
-            expected = set(range(frame_start, frame_end))
+            time.sleep(0.01)
 
-            missing = list(expected - frame["received"])
+    # ============================================================
+    # ack and no ack workers
+    # ============================================================
 
-            # Kein Timer mehr
-            frame["timer"] = None
+    def ack_worker(self):
+        while True:
+            key = self.ack_queue.get()
+            seq_num, src_ip, src_port = key
+            self.on_frame_complete(seq_num, src_ip, src_port)
 
-        # NO_ACK Callback aufrufen
-        if self.on_frame_timeout:
-            threading.Thread(
-                target=self.on_frame_timeout,
-                args=(file_key, missing),
-                daemon=True
-            ).start()
+    def noack_worker(self):
+        while True:
+            key, frame_id = self.noack_queue.get()
+
+            with self.lock:
+                file = self.files.get(key)
+                if not file:
+                    continue
+
+                frame = file["frames"].get(frame_id)
+                if not frame:
+                    continue
+
+                frame_start = frame_id * self.frame_size
+                frame_end = min(frame_start + self.frame_size, file["total_chunks"])
+
+                received_count = frame["received_count"]
+                expected_ids = range(frame_start, frame_end)
+
+                missing = [
+                    i for i in expected_ids
+                    if i not in file["received"]
+                ]
+
+            self.on_frame_timeout(key, missing)
+
 
     # ============================================================
     # FILE COMPLETION
@@ -187,10 +210,9 @@ class FileStore:
             print(len(file["received"]), file["total_chunks"])
             return len(file["received"]) == file["total_chunks"]
 
-    def assemble_file(self, seq_num, src_ip, src_port, output_folder="/Users/fridi/PycharmProjects/CustomNetworkRN/received_data/"):
+    def assemble_file(self, key, output_folder="/Users/fridi/PycharmProjects/CustomNetworkRN/received_data/"):
         print(f"[INFO] Called assemble_file")
 
-        key = (seq_num, src_ip, src_port)
         if not os.path.exists(output_folder):
             print("Pfad existiert nicht!")
             return
