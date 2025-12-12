@@ -1,6 +1,7 @@
 # my_socket.py
 import ipaddress
 import queue
+import signal
 import sys
 import threading
 import time
@@ -21,8 +22,9 @@ from customSocket.routing.neigbor_table import NextNeighborTable
 from customSocket.routing.neighbor_monitor import NeighborMonitor
 from customSocket.routing.routing_table import RoutingTable
 from customSocket.routing.routing_table_monitor import RoutingTableMonitor
-from customSocket.send_handlers import send_msg_handler, send_file_handler, send_ack_handler, send_no_ack_handler, send_heartbeat_handler, \
-    send_hello_handler, send_routing_update_handler
+from customSocket.send_handlers import send_msg_handler, send_file_handler, send_ack_handler, send_no_ack_handler, \
+    send_heartbeat_handler, \
+    send_hello_handler, send_routing_update_handler, send_goodbye_handler
 from . import byteDecoder, config
 
 
@@ -116,6 +118,10 @@ class MySocket:
         # NEU:
         send_thread = threading.Thread(target=self.send_message_gui, daemon=True)
         send_thread.start()
+
+        # Signal-Handler registrieren
+        signal.signal(signal.SIGINT, self._shutdown_handler)
+        signal.signal(signal.SIGTERM, self._shutdown_handler)
 
         while True:
             pass
@@ -219,6 +225,18 @@ class MySocket:
             dest_ip, dest_port = entry
             send_hello_handler.send_hello(self, self.get_seq_num(), dest_ip, int(dest_port), self.my_ip_str, self.my_port)
         return
+
+    def _shutdown_handler(self, signum, frame):
+        print("\n[INFO] Beende Anwendung...")
+        neighbors = self.neighbor_table.get_alive_neighbors()
+        for entry in neighbors:
+            dest_ip = entry.ip
+            dest_port = entry.port
+            send_goodbye_handler.send_goodbye(self, self.get_seq_num(), dest_ip, dest_port, self.my_ip_str, self.my_port)
+            pass
+
+        print("[INFO] Anwendung beendet.")
+        sys.exit(0)
 
 # =====================================================================================================================
 # Sending MSG and DATA
