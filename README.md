@@ -1,4 +1,4 @@
-# Custom_udp_chatprotokoll
+# Custom_UDP_Chatprotocol
 
 This repository contains a custom peer-to-peer chat protocol implemented as part of a university networking assignment.  
 The project is intended for educational purposes and demonstrates how a reliable communication protocol can be built on top of UDP.
