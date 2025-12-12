@@ -58,7 +58,10 @@ def handle_msg(mySocket, data, on_routing_update=None):
     send_ack_handler.send_ack(mySocket, msg.header.sequence_number, msg.header.source_ip, msg.header.source_port, mySocket.my_ip_str, mySocket.my_port)
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
           f"{msg.payload.text}\n")
-# =========================================================
+
+    # NEU: Nachricht an GUI weitergeben
+    if hasattr(mySocket, 'gui') and mySocket.gui:
+        mySocket.gui.add_incoming_message(str(ipaddress.IPv4Address(msg.header.source_ip)), msg.header.source_port, msg.payload.text)
 # Handling received GOODBYE
 # =========================================================
 

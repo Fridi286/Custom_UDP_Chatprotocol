@@ -80,6 +80,8 @@ class MySocket:
         #file_cleaner = threading.Thread(target=self.file_store.cleanup_stale_files, daemon=True)
         #file_cleaner.start()
 
+        self.gui = None
+
         # Neighbor Monitoring Thread starten
         neighbor_monitor = NeighborMonitor(
             self.neighbor_table,
@@ -259,9 +261,8 @@ class MySocket:
             time.sleep(3)
 
     def send_message_gui(self):
-
-        gui = ChatGUI(self)
-        gui.run()
+        self.gui = ChatGUI(self)
+        self.gui.run()
 
     # ----------- Set Sequence Number ------------
     def get_seq_num(self):
