@@ -72,7 +72,7 @@ class MySocket:
         self.neighbor_table = NextNeighborTable()
 
         # Hello Logic - After giving Hello IP/Ports Code, socket will run
-        self.hello_list = self.handel_hello()
+        self.handel_hello()
 
         # Garbage Collector and File Assembler
         #file_cleaner = threading.Thread(target=self.file_store.cleanup_stale_files, daemon=True)
