@@ -12,12 +12,13 @@ def open_terminal_win(command: str, title: str = "Terminal"):
 
 def open_terminal_mac(command: str, title: str = "Terminal"):
     project_path = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol"
+
     apple_script = f'''
-    tell application "Terminal"
-        do script "cd {project_path}; printf '\\033]0;{title}\\007'; {command}"
-        activate
-    end tell
-    '''
+tell application "Terminal"
+    do script "cd '{project_path}'; echo -ne '\\\\033]0;{title}\\\\007'; {command}"
+    activate
+end tell
+'''
     subprocess.Popen(["osascript", "-e", apple_script])
 
 
@@ -27,7 +28,7 @@ def main():
     VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
 
     hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    #ip = socket.gethostbyname(hostname)
 
     if platform.system() == "Windows":
         VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
@@ -38,7 +39,7 @@ def main():
         open_terminal=open_terminal_mac
         print("Running on macOS")
 
-    ip = local_ip
+    ip = "10.8.3.2"
 
     for i in range(3000, 3002):
         port_number = i
