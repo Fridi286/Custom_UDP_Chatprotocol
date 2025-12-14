@@ -155,8 +155,6 @@ def handle_routing_update(mySocket, data, on_routing_update):
     entries = routing_update.payload.entries
     changed = False
     for entry in entries:
-        #if entry.dest_ip == int(ipaddress.IPv4Address(mySocket.my_ip_str)) and entry.dest_port == mySocket.my_port:
-        #    continue
         if mySocket.routing_table.update_route(
                 dest_ip=entry.dest_ip,
                 dest_port=entry.dest_port,
