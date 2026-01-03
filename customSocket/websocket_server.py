@@ -79,6 +79,33 @@ html = """
         .file { margin: 5px 0; padding: 5px; background: #e0f0ff; border-radius: 3px; }
         input { margin: 5px; padding: 5px; }
         button { padding: 5px 15px; cursor: pointer; }
+        .file-path {
+            font-size: 0.9em;
+            color: #666;
+            background: #f5f5f5;
+            padding: 3px 6px;
+            border-radius: 3px;
+            margin-top: 5px;
+            word-break: break-all;
+        }
+        .peer-item {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 12px;
+            background: #e8f4f8;
+            border: 1px solid #b3d9e6;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .peer-item:hover {
+            background: #d0e8f0;
+        }
+        .peer-distance {
+            font-size: 0.85em;
+            color: #666;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -123,30 +150,44 @@ html = """
             console.log('Empfangen:', data);
 
             if(data.type === 'peers') {
-                document.getElementById('peers').innerHTML =
-                    '<h3>Peers:</h3>' + data.peers.map(p => `${p.ip}:${p.port}`).join('<br>');
+                const peersDiv = document.getElementById('peers');
+                if(data.peers.length === 0) {
+                    peersDiv.innerHTML = '<h3>Peers:</h3><p>Keine Peers verfügbar</p>';
+                } else {
+                    const peerElements = data.peers.map(p => {
+                        const distanceText = p.distance === 1 ? '(direkt)' : `(${p.distance} Hops)`;
+                        return `<span class="peer-item" onclick="selectPeer('${p.ip}', ${p.port})">
+                            ${p.ip}:${p.port}
+                            <span class="peer-distance">${distanceText}</span>
+                        </span>`;
+                    }).join('');
+                    peersDiv.innerHTML = '<h3>Peers (klicken zum Auswählen):</h3>' + peerElements;
+                }
             }
             else if(data.type === 'message') {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'msg';
-                msgDiv.innerHTML = `<b>${data.from}</b>: ${data.text} <i>(seq: ${data.seq_num})</i>`;
+                msgDiv.innerHTML = `<b>${escapeHtml(data.from)}</b>: ${escapeHtml(data.text)} <i>(seq: ${data.seq_num})</i>`;
                 document.getElementById('messages').appendChild(msgDiv);
                 scrollMessages();
             }
             else if(data.type === 'file_started') {
                 const fileDiv = document.createElement('div');
                 fileDiv.className = 'file';
-                fileDiv.innerHTML = `<b>${data.from}</b> sendet Datei: <b>${data.filename}</b> (${data.chunks} Chunks) <i>(seq: ${data.seq_num})</i>`;
+                fileDiv.innerHTML = `<b>${escapeHtml(data.from)}</b> sendet Datei: <b>${escapeHtml(data.filename)}</b> (${data.chunks} Chunks) <i>(seq: ${data.seq_num})</i>`;
                 document.getElementById('messages').appendChild(fileDiv);
                 scrollMessages();
             }
             else if(data.type === 'file_complete') {
                 const fileDiv = document.createElement('div');
                 fileDiv.className = 'file';
+
+                const filePathEscaped = escapeHtml(data.file_path);
+
                 fileDiv.innerHTML = `
-                    <b>${data.from}</b> - Datei empfangen: <b>${data.filename}</b> <i>(seq: ${data.seq_num})</i><br>
-                    <button onclick="copyToClipboard('${data.file_path}')">📋 Pfad kopieren</button>
-                    <code style="font-size: 0.9em; color: #666;">${data.file_path}</code>
+                    <b>${escapeHtml(data.from)}</b> - Datei empfangen: <b>${escapeHtml(data.filename)}</b> <i>(seq: ${data.seq_num})</i><br>
+                    <button onclick='copyToClipboard(\`${data.file_path}\`)'>📋 Pfad kopieren</button>
+                    <div class="file-path">${filePathEscaped}</div>
                 `;
                 document.getElementById('messages').appendChild(fileDiv);
                 scrollMessages();
@@ -156,6 +197,18 @@ html = """
             }
         };
 
+        function selectPeer(ip, port) {
+            document.getElementById('destIp').value = ip;
+            document.getElementById('destPort').value = port;
+            console.log(`Peer ausgewählt: ${ip}:${port}`);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function scrollMessages() {
             const messagesDiv = document.getElementById('messages');
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -163,7 +216,10 @@ html = """
 
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                alert('Pfad in Zwischenablage kopiert!');
+                alert('Pfad kopiert: ' + text);
+            }).catch(err => {
+                console.error('Fehler beim Kopieren:', err);
+                alert('Kopieren fehlgeschlagen!');
             });
         }
 
@@ -204,7 +260,6 @@ html = """
             }));
         }
 
-        // Peers alle 2 Sekunden abfragen
         setInterval(() => {
             if(ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'get_peers'}));
@@ -304,8 +359,19 @@ async def handle_get_peers(websocket: WebSocket):
         await websocket.send_json({"type": "peers", "peers": []})
         return
 
-    neighbors = manager.my_socket.neighbor_table.get_alive_neighbors()
-    peers = [{"ip": str(ipaddress.IPv4Address(n.ip)), "port": n.port} for n in neighbors]
+    # Hole alle Routen aus der Routing-Tabelle
+    routes = manager.my_socket.routing_table.get_all_routes()
+
+    peers = []
+    for route in routes:
+        peers.append({
+            "ip": str(ipaddress.IPv4Address(route.dest_ip)),
+            "port": route.dest_port,
+            "distance": route.distance
+        })
+
+    # Sortiere nach Distance (direkte Nachbarn zuerst)
+    peers.sort(key=lambda x: x["distance"])
 
     await websocket.send_json({"type": "peers", "peers": peers})
 

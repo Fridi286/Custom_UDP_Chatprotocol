@@ -95,3 +95,9 @@ class RoutingTable:
             (entry.dest_ip, entry.dest_port, entry.distance)
             for entry in self.table.values()
         ]
+
+    def get_all_routes(self):
+        """
+        Gibt alle Routen als Liste von RoutingEntry zurück
+        """
+        return list(self.table.values())
