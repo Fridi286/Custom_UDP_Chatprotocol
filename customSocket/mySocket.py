@@ -25,6 +25,9 @@ from customSocket.send_handlers import send_msg_handler, send_file_handler, send
     send_hello_handler, send_routing_update_handler, send_goodbye_handler
 from . import byteDecoder, config
 
+# In mySocket.py nach den Imports hinzufügen:
+from customSocket.websocket_server import init_websocket_server
+
 
 class MySocket:
 
@@ -43,6 +46,9 @@ class MySocket:
         self.sock.bind((host, port))
         print(f"\n[INFO] Listening on {my_ip_str}:{my_port}\n")
         #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 * 1024 * 1024)
+
+        # WebSocket Callbacks registrieren
+        self.websocket_callback = None
 
         # self.send_queue = Queue() #OLD
         self.send_queue = SimpleQueue()
@@ -118,6 +124,19 @@ class MySocket:
         # Signal-Handler registrieren
         signal.signal(signal.SIGINT, self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
+
+        # Websocket mit Callback-Registrierung
+        from customSocket.websocket_server import init_websocket_server, notify_message_received, notify_file_received
+        init_websocket_server(self)
+
+        # Callback-Funktion definieren
+        def websocket_notify(event_type, data):
+            if event_type == 'message':
+                notify_message_received(data)
+            elif event_type == 'file_info':
+                notify_file_received(data)
+
+        self.websocket_callback = websocket_notify
 
         while True:
             pass

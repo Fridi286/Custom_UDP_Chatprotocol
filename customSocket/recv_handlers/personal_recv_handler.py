@@ -62,6 +62,10 @@ def handle_msg(mySocket, data, on_routing_update=None):
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
           f"{msg.payload.text}\n")
 
+    # WebSocket benachrichtigen
+    if hasattr(mySocket, 'websocket_callback'):
+        mySocket.websocket_callback('message', msg)
+
 
 # =========================================================
 # Handling received GOODBYE
@@ -110,6 +114,10 @@ def handle_file_info(mySocket, data, on_routing_update=None):
         file_info.payload.filename,
         file_info.header.chunk_length
     )
+
+    # WebSocket benachrichtigen
+    if hasattr(mySocket, 'websocket_callback'):
+        mySocket.websocket_callback('file_info', file_info)
 
     print(f"[RECV] File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
     return succ
