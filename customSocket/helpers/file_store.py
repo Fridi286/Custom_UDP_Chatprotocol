@@ -11,7 +11,7 @@ from customSocket import config
 
 class FileStore:
 
-    def __init__(self, on_frame_complete, on_frame_timeout, mySocket):
+    def __init__(self, on_frame_complete, on_frame_timeout, mySocket, on_file_complete=None):
         """
         on_frame_complete(file_key)  ruft mySocket ACK-Funktion
         on_frame_timeout(file_key, missing_chunks)  ruft mySocket NO_ACK-Funktion
@@ -29,10 +29,12 @@ class FileStore:
         # Callbacks
         self.on_frame_complete = on_frame_complete
         self.on_frame_timeout = on_frame_timeout
+        self.on_file_complete = on_file_complete
 
         # Frame settings
         self.frame_size = config.FRAME_SIZE
         self.frame_wait_time = config.FRAME_WAIT_TIME
+
 
         threading.Thread(
             target=self.frame_timeout_watcher,
@@ -230,6 +232,7 @@ class FileStore:
             return None
 
         file = self.files[key]
+        seq_num, src_ip, src_port = key
 
         if len(file["received"]) != file["total_chunks"]:
             print(f"[ERROR] Can not assemble | Received {len(file["received"])} chunks , expected {file["total_chunks"]} chunks")
@@ -246,11 +249,11 @@ class FileStore:
         with open(output_path, "wb") as f:
             f.write(data)
 
+        print(f"[FILE COMPLETE] {file["filename"]} gespeichert unter {output_path}")
 
-        #for GUI
-        if hasattr(self.mySocket, 'gui') and self.mySocket.gui:
-            seq_num, src_ip, src_port = key
-            self.mySocket.gui.add_file_received(str(ipaddress.IPv4Address(src_ip)), src_port, output_path)
+        # Callback aufrufen
+        if self.on_file_complete:
+            self.on_file_complete(seq_num, src_ip, src_port, file["filename"], str(output_path))
 
         return str(output_path)
 

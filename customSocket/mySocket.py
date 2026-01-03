@@ -7,8 +7,6 @@ import threading
 import time
 from queue import Queue
 from queue import SimpleQueue
-from customSocket.chat_gui import ChatGUI
-
 
 
 from socket import socket, AF_INET, SOCK_DGRAM
@@ -26,6 +24,9 @@ from customSocket.send_handlers import send_msg_handler, send_file_handler, send
     send_heartbeat_handler, \
     send_hello_handler, send_routing_update_handler, send_goodbye_handler
 from . import byteDecoder, config
+
+# In mySocket.py nach den Imports hinzufügen:
+from customSocket.websocket_server import init_websocket_server, notify_file_complete, notify_file_sent
 
 
 class MySocket:
@@ -46,6 +47,9 @@ class MySocket:
         print(f"\n[INFO] Listening on {my_ip_str}:{my_port}\n")
         #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 * 1024 * 1024)
 
+        # WebSocket Callbacks registrieren
+        self.websocket_callback = None
+
         # self.send_queue = Queue() #OLD
         self.send_queue = SimpleQueue()
 
@@ -63,6 +67,7 @@ class MySocket:
             on_frame_complete=self.send_ack_frame,  #Callback function
             on_frame_timeout=self.send_noack_frame,  #Callback function
             mySocket=self,
+            on_file_complete=self.on_file_complete,
         )
 
         # Sequence Number Producer
@@ -80,8 +85,6 @@ class MySocket:
         # Garbage Collector and File Assembler
         #file_cleaner = threading.Thread(target=self.file_store.cleanup_stale_files, daemon=True)
         #file_cleaner.start()
-
-        self.gui = None
 
         # Neighbor Monitoring Thread starten
         neighbor_monitor = NeighborMonitor(
@@ -115,16 +118,30 @@ class MySocket:
             threading.Thread(target=self.send_loop, daemon=True).start()
 
         # Sender Thread starten
-        # ALT:
-        # send_thread = threading.Thread(target=self.send_message, daemon=True)
-        # send_thread.start()
-        # NEU:
-        send_thread = threading.Thread(target=self.send_message_gui, daemon=True)
+        send_thread = threading.Thread(target=self.send_message, daemon=True)
         send_thread.start()
+
 
         # Signal-Handler registrieren
         signal.signal(signal.SIGINT, self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
+
+        # Websocket mit Callback-Registrierung
+        from customSocket.websocket_server import init_websocket_server, notify_message_received, notify_file_received
+        init_websocket_server(self)
+
+        # Callback-Funktion definieren
+        def websocket_notify(event_type, data):
+            if event_type == 'message':
+                notify_message_received(data)
+            elif event_type == 'file_info':
+                notify_file_received(data)
+            elif event_type == 'file_complete':
+                notify_file_complete(data)
+            elif event_type == 'file_sent':
+                notify_file_sent(data)
+
+        self.websocket_callback = websocket_notify
 
         while True:
             pass
@@ -261,10 +278,6 @@ class MySocket:
                 print(e)
             time.sleep(3)
 
-    def send_message_gui(self):
-        self.gui = ChatGUI(self)
-        self.gui.run()
-
     # ----------- Set Sequence Number ------------
     def get_seq_num(self):
         with self.seq_lock:
@@ -286,6 +299,22 @@ class MySocket:
             if routing_info:
                 addr = (str(ipaddress.IPv4Address(routing_info.next_hop_ip)), routing_info.next_hop_port)
             send(packet, addr)
+
+    # =======================================================================================
+    # Websocket Callback for on_file_complete
+    # =================================================================================
+    def on_file_complete(self, seq_num, src_ip, src_port, filename, file_path):
+        """Wird aufgerufen wenn eine Datei vollständig empfangen wurde"""
+        if self.websocket_callback:
+            self.websocket_callback('file_complete', {
+                'seq_num': seq_num,
+                'src_ip': src_ip,
+                'src_port': src_port,
+                'filename': filename,
+                'file_path': file_path
+            })
+
+
 
 # =====================================================================================================================
 # Starter

@@ -39,9 +39,9 @@ def main():
         open_terminal=open_terminal_mac
         print("Running on macOS")
 
-    ip = "10.8.3.3"
+    #ip = "10.8.3.2"
 
-    for i in range(3000, 3002):
+    for i in range(3000, 3003):
         port_number = i
         title = f"Socket: {ip}/{port_number}"
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {port_number}', title)

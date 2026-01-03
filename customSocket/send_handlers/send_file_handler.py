@@ -40,9 +40,17 @@ def send_Data(
     # Here starts the real magic
 
     filename = os.path.basename(path)
-
-
     size = os.path.getsize(path)
+
+    # Neue Zeilen: WebSocket über gesendete Datei benachrichtigen
+    if hasattr(mySocket, 'websocket_callback'):
+        mySocket.websocket_callback('file_sent', {
+            'seq_num': seq_num,
+            'dest_ip': dest_ip,
+            'dest_port': dest_port,
+            'filename': filename,
+            'chunks': math.ceil(size / config.CHUNK_SIZE)
+        })
 
     # ==========Important Variables==========================
     ttl = config.TTL_DEFAULT
