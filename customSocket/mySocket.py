@@ -26,7 +26,7 @@ from customSocket.send_handlers import send_msg_handler, send_file_handler, send
 from . import byteDecoder, config
 
 # In mySocket.py nach den Imports hinzufügen:
-from customSocket.websocket_server import init_websocket_server
+from customSocket.websocket_server import init_websocket_server, notify_file_complete
 
 
 class MySocket:
@@ -67,6 +67,7 @@ class MySocket:
             on_frame_complete=self.send_ack_frame,  #Callback function
             on_frame_timeout=self.send_noack_frame,  #Callback function
             mySocket=self,
+            on_file_complete=self.on_file_complete,
         )
 
         # Sequence Number Producer
@@ -135,6 +136,8 @@ class MySocket:
                 notify_message_received(data)
             elif event_type == 'file_info':
                 notify_file_received(data)
+            elif event_type == 'file_complete':
+                notify_file_complete(data)
 
         self.websocket_callback = websocket_notify
 
@@ -294,6 +297,20 @@ class MySocket:
             if routing_info:
                 addr = (str(ipaddress.IPv4Address(routing_info.next_hop_ip)), routing_info.next_hop_port)
             send(packet, addr)
+
+    # =======================================================================================
+    # Websocket Callback for on_file_complete
+    # =================================================================================
+    def on_file_complete(self, seq_num, src_ip, src_port, filename, file_path):
+        """Wird aufgerufen wenn eine Datei vollständig empfangen wurde"""
+        if self.websocket_callback:
+            self.websocket_callback('file_complete', {
+                'seq_num': seq_num,
+                'src_ip': src_ip,
+                'src_port': src_port,
+                'filename': filename,
+                'file_path': file_path
+            })
 
 # =====================================================================================================================
 # Starter
