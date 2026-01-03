@@ -26,7 +26,7 @@ from customSocket.send_handlers import send_msg_handler, send_file_handler, send
 from . import byteDecoder, config
 
 # In mySocket.py nach den Imports hinzufügen:
-from customSocket.websocket_server import init_websocket_server, notify_file_complete
+from customSocket.websocket_server import init_websocket_server, notify_file_complete, notify_file_sent
 
 
 class MySocket:
@@ -138,6 +138,8 @@ class MySocket:
                 notify_file_received(data)
             elif event_type == 'file_complete':
                 notify_file_complete(data)
+            elif event_type == 'file_sent':
+                notify_file_sent(data)
 
         self.websocket_callback = websocket_notify
 
@@ -311,6 +313,8 @@ class MySocket:
                 'filename': filename,
                 'file_path': file_path
             })
+
+
 
 # =====================================================================================================================
 # Starter

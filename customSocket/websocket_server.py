@@ -68,17 +68,126 @@ html = """
     <title>Custom UDP Chat</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        #messages {
+        #peers-container {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .peer-item {
+            display: inline-block;
+            padding: 8px 12px;
+            background: #e8f4f8;
+            border: 1px solid #b3d9e6;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+            position: relative;
+        }
+        .peer-item:hover {
+            background: #d0e8f0;
+        }
+        .peer-item.active {
+            background: #4a90e2;
+            color: white;
+            border-color: #3a7bc8;
+        }
+        .peer-item.has-unread {
+            font-weight: bold;
+        }
+        .peer-item.has-unread::after {
+            content: '';
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 10px;
+            height: 10px;
+            background: #ff4444;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .peer-item.active.has-unread::after {
+            display: none;
+        }
+        .unread-count {
+            background: #ff4444;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-left: 8px;
+            font-weight: bold;
+        }
+        .peer-item.active .unread-count {
+            display: none;
+        }
+        .peer-distance {
+            font-size: 0.85em;
+            color: #666;
+            margin-left: 8px;
+        }
+        .peer-item.active .peer-distance {
+            color: #e0e0e0;
+        }
+        #chat-container {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .chat-section {
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            display: none;
+        }
+        .chat-section.active {
+            display: block;
+        }
+        .chat-header {
+            font-weight: bold;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 3px;
+            margin-bottom: 10px;
+        }
+        .messages-area {
             max-height: 400px;
             overflow-y: auto;
-            border: 1px solid #ccc;
+            border: 1px solid #ddd;
             padding: 10px;
-            margin: 10px 0;
+            margin-bottom: 10px;
+            background: white;
         }
-        .msg { margin: 5px 0; padding: 5px; background: #f0f0f0; border-radius: 3px; }
-        .file { margin: 5px 0; padding: 5px; background: #e0f0ff; border-radius: 3px; }
-        input { margin: 5px; padding: 5px; }
-        button { padding: 5px 15px; cursor: pointer; }
+        .msg {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+        .msg.sent {
+            background: #dcf8c6;
+            margin-left: auto;
+            text-align: right;
+        }
+        .msg.received {
+            background: #f0f0f0;
+        }
+        .msg-header {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 3px;
+        }
+        .msg-text {
+            word-wrap: break-word;
+        }
+        .file {
+            margin: 5px 0;
+            padding: 8px;
+            background: #e0f0ff;
+            border-radius: 5px;
+            border-left: 3px solid #4a90e2;
+        }
         .file-path {
             font-size: 0.9em;
             color: #666;
@@ -88,47 +197,45 @@ html = """
             margin-top: 5px;
             word-break: break-all;
         }
-        .peer-item {
-            display: inline-block;
+        input, button {
             margin: 5px;
-            padding: 8px 12px;
-            background: #e8f4f8;
-            border: 1px solid #b3d9e6;
-            border-radius: 5px;
+            padding: 8px;
+        }
+        button {
             cursor: pointer;
-            transition: background 0.2s;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 3px;
         }
-        .peer-item:hover {
-            background: #d0e8f0;
+        button:hover {
+            background: #3a7bc8;
         }
-        .peer-distance {
-            font-size: 0.85em;
-            color: #666;
-            margin-left: 8px;
+        .send-area {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .send-area input {
+            flex: 1;
         }
     </style>
 </head>
 <body>
     <h1>UDP Chat Interface</h1>
     <div id="status">Verbinde...</div>
-    <div id="peers"></div>
 
-    <h3>Nachricht senden</h3>
-    <input id="destIp" placeholder="Ziel-IP"/>
-    <input id="destPort" placeholder="Ziel-Port" type="number"/>
-    <input id="message" placeholder="Nachricht"/>
-    <button onclick="sendMessage()">Text senden</button>
+    <h3>Peers (klicken zum Auswählen):</h3>
+    <div id="peers-container"></div>
 
-    <h3>Datei senden</h3>
-    <input id="filePath" placeholder="Dateipfad"/>
-    <button onclick="sendFile()">Datei senden</button>
-
-    <h3>Empfangene Nachrichten</h3>
-    <div id="messages"></div>
+    <div id="chat-container"></div>
 
     <script>
         const port = window.location.port;
         const ws = new WebSocket(`ws://localhost:${port}/ws`);
+        let currentPeer = null;
+        const chatData = {};
+        const unreadCounts = {};
 
         ws.onopen = () => {
             document.getElementById('status').innerHTML = '<b style="color:green">Verbunden</b>';
@@ -150,57 +257,279 @@ html = """
             console.log('Empfangen:', data);
 
             if(data.type === 'peers') {
-                const peersDiv = document.getElementById('peers');
-                if(data.peers.length === 0) {
-                    peersDiv.innerHTML = '<h3>Peers:</h3><p>Keine Peers verfügbar</p>';
-                } else {
-                    const peerElements = data.peers.map(p => {
-                        const distanceText = p.distance === 1 ? '(direkt)' : `(${p.distance} Hops)`;
-                        return `<span class="peer-item" onclick="selectPeer('${p.ip}', ${p.port})">
-                            ${p.ip}:${p.port}
-                            <span class="peer-distance">${distanceText}</span>
-                        </span>`;
-                    }).join('');
-                    peersDiv.innerHTML = '<h3>Peers (klicken zum Auswählen):</h3>' + peerElements;
-                }
+                updatePeers(data.peers);
             }
             else if(data.type === 'message') {
-                const msgDiv = document.createElement('div');
-                msgDiv.className = 'msg';
-                msgDiv.innerHTML = `<b>${escapeHtml(data.from)}</b>: ${escapeHtml(data.text)} <i>(seq: ${data.seq_num})</i>`;
-                document.getElementById('messages').appendChild(msgDiv);
-                scrollMessages();
+                const peerKey = data.from;
+                if(!chatData[peerKey]) {
+                    createChatSection(peerKey);
+                    chatData[peerKey] = [];
+                }
+                addMessage(peerKey, data.text, data.seq_num, 'received');
+
+                if(currentPeer !== peerKey) {
+                    unreadCounts[peerKey] = (unreadCounts[peerKey] || 0) + 1;
+                    updatePeerUnreadIndicator(peerKey);
+                }
+            }
+            else if(data.type === 'message_sent') {
+                const peerKey = data.to;
+                if(!chatData[peerKey]) {
+                    createChatSection(peerKey);
+                    chatData[peerKey] = [];
+                }
+                addMessage(peerKey, data.text, data.seq_num, 'sent');
             }
             else if(data.type === 'file_started') {
-                const fileDiv = document.createElement('div');
-                fileDiv.className = 'file';
-                fileDiv.innerHTML = `<b>${escapeHtml(data.from)}</b> sendet Datei: <b>${escapeHtml(data.filename)}</b> (${data.chunks} Chunks) <i>(seq: ${data.seq_num})</i>`;
-                document.getElementById('messages').appendChild(fileDiv);
-                scrollMessages();
+                const peerKey = data.from;
+                if(!chatData[peerKey]) {
+                    createChatSection(peerKey);
+                    chatData[peerKey] = [];
+                }
+                addFileNotification(peerKey, data.filename, data.chunks, data.seq_num);
+
+                if(currentPeer !== peerKey) {
+                    unreadCounts[peerKey] = (unreadCounts[peerKey] || 0) + 1;
+                    updatePeerUnreadIndicator(peerKey);
+                }
             }
             else if(data.type === 'file_complete') {
-                const fileDiv = document.createElement('div');
-                fileDiv.className = 'file';
+                const peerKey = data.from;
+                addFileComplete(peerKey, data.filename, data.file_path, data.seq_num);
 
-                const filePathEscaped = escapeHtml(data.file_path);
-
-                fileDiv.innerHTML = `
-                    <b>${escapeHtml(data.from)}</b> - Datei empfangen: <b>${escapeHtml(data.filename)}</b> <i>(seq: ${data.seq_num})</i><br>
-                    <button onclick='copyToClipboard(\`${data.file_path}\`)'>📋 Pfad kopieren</button>
-                    <div class="file-path">${filePathEscaped}</div>
-                `;
-                document.getElementById('messages').appendChild(fileDiv);
-                scrollMessages();
+                if(currentPeer !== peerKey) {
+                    unreadCounts[peerKey] = (unreadCounts[peerKey] || 0) + 1;
+                    updatePeerUnreadIndicator(peerKey);
+                }
             }
             else if(data.type === 'success' || data.type === 'error') {
-                alert(data.message);
+                console.log(data.message);
+            }
+            else if(data.type === 'file_sent') {
+                const peerKey = data.to;
+                if(!chatData[peerKey]) {
+                    chatData[peerKey] = [];
+                    createChatSection(peerKey);
+                }
+                addFileSent(peerKey, data.filename, data.chunks, data.seq_num);
             }
         };
+        
+        function addFileSent(peerKey, filename, chunks, seq_num) {
+            if(!chatData[peerKey]) {
+                chatData[peerKey] = [];
+            }
+        
+            chatData[peerKey].push({type: 'file_sent', filename, chunks, seq_num});
+        
+            const messagesDiv = document.getElementById(`messages-${peerKey}`);
+            if(!messagesDiv) return;
+        
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file';
+            fileDiv.style.marginLeft = 'auto';
+            fileDiv.style.maxWidth = '80%';
+            fileDiv.style.background = '#d4edda';
+            fileDiv.style.borderLeft = '3px solid #28a745';
+            fileDiv.innerHTML = `📤 Datei gesendet: <b>${escapeHtml(filename)}</b> (${chunks} Chunks) <i>(seq: ${seq_num})</i>`;
+            messagesDiv.appendChild(fileDiv);
+            scrollMessages(peerKey);
+        }
+        
+        function updatePeers(peers) {
+            const container = document.getElementById('peers-container');
+            if(peers.length === 0) {
+                container.innerHTML = '<i>Keine Peers gefunden</i>';
+                return;
+            }
 
-        function selectPeer(ip, port) {
-            document.getElementById('destIp').value = ip;
-            document.getElementById('destPort').value = port;
-            console.log(`Peer ausgewählt: ${ip}:${port}`);
+            container.innerHTML = '';
+            peers.forEach(p => {
+                const peerKey = `${p.ip}:${p.port}`;
+                const item = document.createElement('div');
+                item.className = 'peer-item';
+                if(currentPeer === peerKey) {
+                    item.classList.add('active');
+                }
+
+                const unreadCount = unreadCounts[peerKey] || 0;
+                if(unreadCount > 0 && currentPeer !== peerKey) {
+                    item.classList.add('has-unread');
+                }
+
+                const unreadBadge = unreadCount > 0 ? `<span class="unread-count">${unreadCount}</span>` : '';
+
+                item.innerHTML = `${p.ip}:${p.port}${unreadBadge}<span class="peer-distance">Hop ${p.distance}</span>`;
+                item.onclick = () => selectPeer(peerKey);
+
+                container.appendChild(item);
+
+                if(!chatData[peerKey]) {
+                    createChatSection(peerKey);
+                    chatData[peerKey] = [];
+                }
+            });
+        }
+
+        function selectPeer(peerKey) {
+            currentPeer = peerKey;
+
+            unreadCounts[peerKey] = 0;
+
+            document.querySelectorAll('.peer-item').forEach(item => {
+                item.classList.remove('active');
+                item.classList.remove('has-unread');
+                const badge = item.querySelector('.unread-count');
+                if(badge) badge.remove();
+            });
+            event.target.closest('.peer-item').classList.add('active');
+
+            document.querySelectorAll('.chat-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(`chat-${peerKey}`).classList.add('active');
+
+            scrollMessages(peerKey);
+        }
+
+        function updatePeerUnreadIndicator(peerKey) {
+            const container = document.getElementById('peers-container');
+            const items = container.querySelectorAll('.peer-item');
+
+            items.forEach(item => {
+                const itemText = item.textContent;
+                if(itemText.startsWith(peerKey)) {
+                    const unreadCount = unreadCounts[peerKey] || 0;
+                    if(unreadCount > 0 && currentPeer !== peerKey) {
+                        item.classList.add('has-unread');
+                        const existingBadge = item.querySelector('.unread-count');
+                        if(existingBadge) {
+                            existingBadge.textContent = unreadCount;
+                        }
+                    }
+                }
+            });
+        }
+
+        function createChatSection(peerKey) {
+            const container = document.getElementById('chat-container');
+            const [ip, port] = peerKey.split(':');
+
+            const section = document.createElement('div');
+            section.className = 'chat-section';
+            section.id = `chat-${peerKey}`;
+            if(currentPeer === peerKey) {
+                section.classList.add('active');
+            }
+
+            section.innerHTML = `
+                <div class="chat-header">Chat mit ${peerKey}</div>
+                <div class="messages-area" id="messages-${peerKey}"></div>
+                <div class="send-area">
+                    <input type="text" id="msg-input-${peerKey}" placeholder="Nachricht eingeben..." 
+                           onkeypress="if(event.key==='Enter') sendMessage('${ip}', ${port})">
+                    <button onclick="sendMessage('${ip}', ${port})">Senden</button>
+                    <button onclick="sendFile('${ip}', ${port})">Datei senden</button>
+                </div>
+            `;
+
+            container.appendChild(section);
+        }
+
+        function addMessage(peerKey, text, seq_num, type) {
+            if(!chatData[peerKey]) {
+                chatData[peerKey] = [];
+            }
+
+            chatData[peerKey].push({type: 'message', direction: type, text, seq_num});
+
+            const messagesDiv = document.getElementById(`messages-${peerKey}`);
+            if(!messagesDiv) return;
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `msg ${type}`;
+
+            const timeStr = new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+            msgDiv.innerHTML = `
+                <div class="msg-header">${timeStr} • seq: ${seq_num}</div>
+                <div class="msg-text">${escapeHtml(text)}</div>
+            `;
+
+            messagesDiv.appendChild(msgDiv);
+            scrollMessages(peerKey);
+        }
+
+        function addFileNotification(peerKey, filename, chunks, seq_num) {
+            if(!chatData[peerKey]) {
+                chatData[peerKey] = [];
+            }
+
+            chatData[peerKey].push({type: 'file_started', filename, chunks, seq_num});
+
+            const messagesDiv = document.getElementById(`messages-${peerKey}`);
+            if(!messagesDiv) return;
+
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file';
+            fileDiv.innerHTML = `📥 Empfange Datei: <b>${escapeHtml(filename)}</b> (${chunks} Chunks) <i>(seq: ${seq_num})</i>`;
+            messagesDiv.appendChild(fileDiv);
+            scrollMessages(peerKey);
+        }
+
+        function addFileComplete(peerKey, filename, file_path, seq_num) {
+            const messagesDiv = document.getElementById(`messages-${peerKey}`);
+            if(!messagesDiv) return;
+
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file';
+            fileDiv.innerHTML = `
+                ✅ Datei empfangen: <b>${escapeHtml(filename)}</b> <i>(seq: ${seq_num})</i>
+                <div class="file-path">
+                    📁 ${escapeHtml(file_path)}
+                    <button onclick="copyToClipboard('${file_path.replace(/'/g, "\\'")}')">📋 Kopieren</button>
+                </div>
+            `;
+            messagesDiv.appendChild(fileDiv);
+            scrollMessages(peerKey);
+        }
+
+        function sendMessage(ip, port) {
+            const peerKey = `${ip}:${port}`;
+            const input = document.getElementById(`msg-input-${peerKey}`);
+            const message = input.value.trim();
+
+            if(!message) {
+                alert('Bitte eine Nachricht eingeben!');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                action: 'send_text',
+                dest_ip: ip,
+                dest_port: parseInt(port),
+                message: message
+            }));
+
+            input.value = '';
+        }
+
+        function sendFile(ip, port) {
+            const filePath = prompt('Dateipfad eingeben:');
+            if(!filePath) return;
+
+            ws.send(JSON.stringify({
+                action: 'send_file',
+                dest_ip: ip,
+                dest_port: parseInt(port),
+                file_path: filePath
+            }));
+        }
+
+        function scrollMessages(peerKey) {
+            const messagesDiv = document.getElementById(`messages-${peerKey}`);
+            if(messagesDiv) {
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
         }
 
         function escapeHtml(text) {
@@ -209,55 +538,10 @@ html = """
             return div.innerHTML;
         }
 
-        function scrollMessages() {
-            const messagesDiv = document.getElementById('messages');
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                alert('Pfad kopiert: ' + text);
-            }).catch(err => {
-                console.error('Fehler beim Kopieren:', err);
-                alert('Kopieren fehlgeschlagen!');
+                alert('Pfad kopiert!');
             });
-        }
-
-        function sendMessage() {
-            const destIp = document.getElementById('destIp').value;
-            const destPort = parseInt(document.getElementById('destPort').value);
-            const message = document.getElementById('message').value;
-
-            if(!destIp || !destPort || !message) {
-                alert('Bitte alle Felder ausfüllen');
-                return;
-            }
-
-            ws.send(JSON.stringify({
-                action: 'send_text',
-                dest_ip: destIp,
-                dest_port: destPort,
-                message: message
-            }));
-            document.getElementById('message').value = '';
-        }
-
-        function sendFile() {
-            const destIp = document.getElementById('destIp').value;
-            const destPort = parseInt(document.getElementById('destPort').value);
-            const filePath = document.getElementById('filePath').value;
-
-            if(!destIp || !destPort || !filePath) {
-                alert('Bitte alle Felder ausfüllen');
-                return;
-            }
-
-            ws.send(JSON.stringify({
-                action: 'send_file',
-                dest_ip: destIp,
-                dest_port: destPort,
-                file_path: filePath
-            }));
         }
 
         setInterval(() => {
@@ -321,7 +605,14 @@ async def handle_send_text(data: dict, websocket: WebSocket):
             )
 
         threading.Thread(target=send_task, daemon=True).start()
-        await websocket.send_json({"type": "success", "message": "Nachricht wird gesendet..."})
+
+        # Benachrichtige alle Clients über gesendete Nachricht
+        manager.broadcast_sync({
+            "type": "message_sent",
+            "to": f"{dest_ip}:{dest_port}",
+            "text": message,
+            "seq_num": seq_num
+        })
 
     except Exception as e:
         await websocket.send_json({"type": "error", "message": str(e)})
@@ -403,6 +694,17 @@ def notify_file_complete(data):
         "file_path": data['file_path'],
         "seq_num": data['seq_num']
     })
+
+# In der notify-Funktion am Ende der Datei ergänzen:
+def notify_file_sent(file_info):
+    manager.broadcast_sync({
+        "type": "file_sent",
+        "to": f"{file_info['dest_ip']}:{file_info['dest_port']}",
+        "filename": file_info['filename'],
+        "chunks": file_info['chunks'],
+        "seq_num": file_info['seq_num']
+    })
+
 
 
 def init_websocket_server(my_socket):
