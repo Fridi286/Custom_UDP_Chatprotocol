@@ -62,13 +62,10 @@ def handle_msg(mySocket, data, on_routing_update=None):
     print(f"\n[RECV from {msg.header.source_ip}:{msg.header.source_port}] \n"
           f"{msg.payload.text}\n")
 
-    # NEU: Nachricht an GUI weitergeben
-    if hasattr(mySocket, 'gui') and mySocket.gui:
-        mySocket.gui.add_incoming_message(str(ipaddress.IPv4Address(msg.header.source_ip)), msg.header.source_port, msg.payload.text)
+
+# =========================================================
 # Handling received GOODBYE
 # =========================================================
-
-
 def handle_goodbye(mySocket, data, on_routing_update):
     src_ip = int(ipaddress.IPv4Address(int.from_bytes(data[9: 13])))
     src_port = int(ipaddress.IPv4Address(int.from_bytes(data[15: 17])))
@@ -113,19 +110,6 @@ def handle_file_info(mySocket, data, on_routing_update=None):
         file_info.payload.filename,
         file_info.header.chunk_length
     )
-    # Download-Fenster erstellen
-    if hasattr(mySocket, 'gui') and mySocket.gui:
-        src_ip = str(ipaddress.IPv4Address(file_info.header.source_ip))
-        src_port = file_info.header.source_port
-
-        download_window = mySocket.gui.create_download_window(
-            src_ip, src_port, file_info.payload.filename, file_info.header.chunk_length
-        )
-
-        if not hasattr(mySocket.file_store, 'download_windows'):
-            mySocket.file_store.download_windows = {}
-
-        mySocket.file_store.download_windows[file_info.header.sequence_number] = download_window
 
     print(f"[RECV] File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
     return succ

@@ -7,8 +7,6 @@ import threading
 import time
 from queue import Queue
 from queue import SimpleQueue
-from customSocket.chat_gui import ChatGUI
-
 
 
 from socket import socket, AF_INET, SOCK_DGRAM
@@ -81,8 +79,6 @@ class MySocket:
         #file_cleaner = threading.Thread(target=self.file_store.cleanup_stale_files, daemon=True)
         #file_cleaner.start()
 
-        self.gui = None
-
         # Neighbor Monitoring Thread starten
         neighbor_monitor = NeighborMonitor(
             self.neighbor_table,
@@ -115,12 +111,9 @@ class MySocket:
             threading.Thread(target=self.send_loop, daemon=True).start()
 
         # Sender Thread starten
-        # ALT:
-        # send_thread = threading.Thread(target=self.send_message, daemon=True)
-        # send_thread.start()
-        # NEU:
-        send_thread = threading.Thread(target=self.send_message_gui, daemon=True)
+        send_thread = threading.Thread(target=self.send_message, daemon=True)
         send_thread.start()
+
 
         # Signal-Handler registrieren
         signal.signal(signal.SIGINT, self._shutdown_handler)
@@ -260,10 +253,6 @@ class MySocket:
             except Exception as e:
                 print(e)
             time.sleep(3)
-
-    def send_message_gui(self):
-        self.gui = ChatGUI(self)
-        self.gui.run()
 
     # ----------- Set Sequence Number ------------
     def get_seq_num(self):
