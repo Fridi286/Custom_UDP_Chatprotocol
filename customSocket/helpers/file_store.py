@@ -1,5 +1,6 @@
 import ipaddress
 import os
+import platform
 import queue
 import time
 import threading
@@ -219,6 +220,10 @@ class FileStore:
             return len(file["received"]) == file["total_chunks"]
 
     def assemble_file(self, key, output_folder="/Users/fridi/PycharmProjects/CustomNetworkRN/received_data/"):
+        if platform.system() == "Windows":
+            output_folder = "/Users/fridi/PycharmProjects/CustomNetworkRN/received_data/"
+        elif platform.system() == "Darwin":
+            output_folder = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol_new/received_data/"
         print(f"[INFO] Called assemble_file")
 
         if not os.path.exists(output_folder):

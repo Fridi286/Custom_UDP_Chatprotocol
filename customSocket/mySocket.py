@@ -5,10 +5,7 @@ import signal
 import sys
 import threading
 import time
-from queue import Queue
 from queue import SimpleQueue
-
-
 from socket import socket, AF_INET, SOCK_DGRAM
 from typing import Tuple
 
@@ -23,10 +20,9 @@ from customSocket.routing.routing_table_monitor import RoutingTableMonitor
 from customSocket.send_handlers import send_msg_handler, send_file_handler, send_ack_handler, send_no_ack_handler, \
     send_heartbeat_handler, \
     send_hello_handler, send_routing_update_handler, send_goodbye_handler
-from . import byteDecoder, config
-
 # In mySocket.py nach den Imports hinzufügen:
-from customSocket.websocket_server import init_websocket_server, notify_file_complete, notify_file_sent
+from customSocket.websocket_server import notify_file_complete, notify_file_sent
+from . import config
 
 
 class MySocket:

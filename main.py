@@ -11,7 +11,7 @@ def open_terminal_win(command: str, title: str = "Terminal"):
 
 
 def open_terminal_mac(command: str, title: str = "Terminal"):
-    project_path = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol"
+    project_path = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol_new"
 
     apple_script = f'''
 tell application "Terminal"
@@ -28,18 +28,18 @@ def main():
     VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
 
     hostname = socket.gethostname()
-    ip = socket.gethostbyname(hostname)
+    #ip = socket.gethostbyname(hostname)
 
     if platform.system() == "Windows":
         VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
         open_terminal=open_terminal_win
         print("Running on Windows")
     elif platform.system() == "Darwin":
-        VENV_PYTHON = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol/.venv/bin/python"
+        VENV_PYTHON = "/Users/fridi/PycharmProjects/Custom_UDP_Chatprotocol_new/.venv/bin/python"
         open_terminal=open_terminal_mac
         print("Running on macOS")
 
-    #ip = "10.8.3.2"
+    ip = "10.8.3.2"
 
     for i in range(3000, 3003):
         port_number = i
