@@ -131,7 +131,7 @@ def handle_heartbeat(mySocket, data, on_routing_update=None):
     src_ip = int.from_bytes(data[9: 13], "big")
     src_port = int.from_bytes(data[15: 17], "big")
     mySocket.neighbor_table.update_neighbor(src_ip, src_port, mySocket)
-    #print(f"[HEARTBEAT] Received from {src_ip}:{src_port}")
+    print(f"[HEARTBEAT] Received from {src_ip}:{src_port}")
 
 # =========================================================
 # Handling received ROUTING_UPDATE
@@ -141,7 +141,7 @@ def handle_heartbeat(mySocket, data, on_routing_update=None):
 def handle_routing_update(mySocket, data, on_routing_update):
     routing_update, succ = byteDecoder.decodePayload(data)
     if not succ: return False
-    print(routing_update.payload)
+    print(f"[RECV] Routing Update from {str(ipaddress.IPv4Address(routing_update.header.source_ip))}/{routing_update.header.source_port} DATA: {routing_update.payload}")
     next_hop_ip = routing_update.header.source_ip
     next_hop_port = routing_update.header.source_port
     entries = routing_update.payload.entries

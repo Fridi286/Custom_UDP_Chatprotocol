@@ -162,6 +162,7 @@ class MySocket:
         while True:
             data = queue_get()
             if data[5: 9] == self.my_ip_bytes and data[13: 15] == self.my_port_bytes:
+
                 self.my_incoming.put(data)
             else:
                 self.routing_incoming.put(data)
