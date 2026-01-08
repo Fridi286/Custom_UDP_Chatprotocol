@@ -27,7 +27,7 @@ class NextNeighborTable:
 
     def update_neighbor(self, ip: int, port: int, mySocket):
         """
-        Wird bei jedem HEARTBEAT, HELLO oder jedem Paket des Nachbarn aufgerufen.
+        Wird bei jedem HEARTBEAT, HELLO aufgerufen.
         """
         now = time.time()
         key = (ip, port)
@@ -37,6 +37,18 @@ class NextNeighborTable:
             self.neighbors[key] = NeighborEntry(ip=ip, port=port, last_heard=now, alive=True)
             mySocket.routing_table.update_route(dest_ip=ip, dest_port=port, next_hop_ip=ip, next_hop_port=port, distance=1)
         else:
+            entry = self.neighbors[key]
+            entry.last_heard = now
+            entry.alive = True
+
+    def update_existing_neighbor(self, ip: int, port: int, mySocket):
+        """
+        Wird bei jedem jedem Paket des Nachbarn aufgerufen.
+        """
+        now = time.time()
+        key = (ip, port)
+
+        if key in self.neighbors:
             entry = self.neighbors[key]
             entry.last_heard = now
             entry.alive = True

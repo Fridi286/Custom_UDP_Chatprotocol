@@ -28,7 +28,7 @@ def main():
     VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
 
     hostname = socket.gethostname()
-    #ip = socket.gethostbyname(hostname)
+    ip = socket.gethostbyname(hostname)
 
     if platform.system() == "Windows":
         VENV_PYTHON = "C:\\Users\\fridi\\PycharmProjects\\CustomNetworkRN\\.venv\\Scripts\\python.exe"
@@ -39,9 +39,9 @@ def main():
         open_terminal=open_terminal_mac
         print("Running on macOS")
 
-    ip = "10.8.3.4"
+    #ip = "10.8.3.2"
 
-    for i in range(3000, 3002):
+    for i in range(3000, 3004):
         port_number = i
         title = f"Socket: {ip}/{port_number}"
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {port_number}', title)

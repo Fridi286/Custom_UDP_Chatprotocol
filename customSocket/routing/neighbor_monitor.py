@@ -22,19 +22,17 @@ class NeighborMonitor(threading.Thread):
         while self.running:
             changed = False
 
-            # Prüfe für jeden Neighbor, ob er tot ist
             for (ip, port), entry in list(self.neighbor_table.neighbors.items()):
                 died_now = self.neighbor_table.mark_dead_if_timeout(ip, port)
 
                 if died_now:
                     print(f"[NEIGHBOR DEAD] {ip}:{port}")
 
-                    # Alle Routen über diesen Nachbarn entfernen
-                    if self.routing_table.delete_routes_via(ip, port):
+                    # Poison alle Routen über diesen Nachbarn (statt löschen!)
+                    if self.routing_table.poison_routes_via(ip, port):
                         changed = True
 
-            # Wenn sich etwas verändert hat → Routing Update senden
             if changed:
                 self.on_routing_update()
 
-            time.sleep(1)  # Scan alle 1 Sekunde
+            time.sleep(1)

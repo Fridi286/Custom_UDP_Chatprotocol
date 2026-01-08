@@ -96,7 +96,8 @@ def handle_file_chunk(mySocket, data, on_routing_update=None):
     )
 
 
-    mySocket.neighbor_table.update_neighbor(file_chunk.header.source_ip, file_chunk.header.source_port, mySocket)
+    mySocket.neighbor_table.update_existing_neighbor(file_chunk.header.source_ip, file_chunk.header.source_port, mySocket)
+
     return succ
 
 # =========================================================

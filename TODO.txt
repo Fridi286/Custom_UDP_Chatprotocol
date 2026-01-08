@@ -1,0 +1,2 @@
+- NOAKS werden unendlich gesendet wenn sender verschwindet
+- Loop bei 255 distance
