@@ -120,7 +120,7 @@ def handle_file_info(mySocket, data, on_routing_update=None):
     if hasattr(mySocket, 'websocket_callback'):
         mySocket.websocket_callback('file_info', file_info)
 
-    print(f"[RECV] File Info {file_info.header.sequence_number} with total of {file_info.header.chunk_length} chunks")
+    print(f"[RECV] File Info {file_info.header.sequence_number} from {file_info.header.source_ip}/{file_info.header.source_port} with total of {file_info.header.chunk_length} chunks")
     return succ
 
 # =========================================================

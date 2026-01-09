@@ -36,6 +36,9 @@ class FileStore:
         self.frame_size = config.FRAME_SIZE
         self.frame_wait_time = config.FRAME_WAIT_TIME
 
+        # NOACK Settings
+        self.max_noack_retries = 5  # Maximale Anzahl NOACK-Versuche pro Frame
+
 
         threading.Thread(
             target=self.frame_timeout_watcher,
@@ -115,7 +118,8 @@ class FileStore:
                     "received_count": 0,
                     "expected": frame_end - frame_start,
                     "last_update": time.monotonic(),
-                    "completed": False
+                    "completed": False,
+                    "noack_count": 0,
                 }
                 file["frames"][frame_id] = frame
 
@@ -160,14 +164,17 @@ class FileStore:
                     for frame_id, frame in file["frames"].items():
                         if frame["completed"]:
                             continue
+                        if frame["noack_count"] >= self.max_noack_retries:
+                            continue  # Maximale Versuche erreicht
                         if now - frame["last_update"] >= self.frame_wait_time:
                             expired.append((key, frame_id))
                             frame["last_update"] = now
+                            frame["noack_count"] += 1  # Zähler erhöhen
 
             for key, frame_id in expired:
                 self.noack_queue.put((key, frame_id))
 
-            time.sleep(0.01)
+            time.sleep(0.1)
 
     # ============================================================
     # ack and no ack workers

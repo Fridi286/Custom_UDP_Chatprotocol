@@ -222,8 +222,11 @@ html = """
     </style>
 </head>
 <body>
-    <h1>UDP Chat Interface</h1>
+    <h1>UDP Chat Interface</h1>    
     <div id="status">Verbinde...</div>
+    <button onclick="sendGoodbye()" style="background: #dc3545; margin: 10px 0;">
+        🚪 Goodbye senden & Beenden
+    </button>
 
     <h3>Peers (klicken zum Auswählen):</h3>
     <div id="peers-container"></div>
@@ -314,6 +317,23 @@ html = """
                 addFileSent(peerKey, data.filename, data.chunks, data.seq_num);
             }
         };
+        
+        function sendGoodbye() {
+            if (confirm('Möchtest du wirklich Goodbye senden und die Verbindung beenden?')) {
+                ws.send(JSON.stringify({
+                    action: 'goodbye'
+                }));
+                
+                // UI-Feedback
+                document.getElementById('status').innerHTML = '<b style="color:orange">Goodbye wird gesendet...</b>';
+                
+                // WebSocket nach kurzer Zeit schließen
+                setTimeout(() => {
+                    ws.close();
+                }, 2000);
+            }
+        }
+        
         
         function addFileSent(peerKey, filename, chunks, seq_num) {
             if(!chatData[peerKey]) {
@@ -576,12 +596,35 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_send_file(message, websocket)
             elif action == "get_peers":
                 await handle_get_peers(websocket)
+            elif action == "goodbye":
+                await handle_goodbye(websocket)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
         print(f"[WEBSOCKET ERROR] {e}")
         manager.disconnect(websocket)
+
+
+async def handle_goodbye(websocket: WebSocket):
+    """Behandelt Goodbye-Request vom WebSocket-Client"""
+    try:
+        # Bestätige dem Client
+        await websocket.send_json({
+            "type": "success",
+            "message": "Goodbye wird gesendet..."
+        })
+
+        # Führe Shutdown in separatem Thread aus (nicht blockierend)
+        def shutdown_task():
+            import time
+            time.sleep(0.5)  # Kurze Verzögerung damit Response noch ankommt
+            manager.my_socket.shutdown_gracefully()
+
+        threading.Thread(target=shutdown_task, daemon=False).start()
+
+    except Exception as e:
+        await websocket.send_json({"type": "error", "message": str(e)})
 
 
 async def handle_send_text(data: dict, websocket: WebSocket):
@@ -750,3 +793,4 @@ def init_websocket_server(my_socket):
     time.sleep(1)
 
     print(f"[WEBSOCKET] Server sollte nun auf http://localhost:{port} erreichbar sein")
+

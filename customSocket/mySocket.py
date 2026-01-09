@@ -126,6 +126,9 @@ class MySocket:
         from customSocket.websocket_server import init_websocket_server, notify_message_received, notify_file_received
         init_websocket_server(self)
 
+        # Shutdown Event für ordnungsgemäßes Beenden
+        self.shutdown_event = threading.Event()
+
         # Callback-Funktion definieren
         def websocket_notify(event_type, data):
             if event_type == 'message':
@@ -310,6 +313,45 @@ class MySocket:
                 'filename': filename,
                 'file_path': file_path
             })
+
+    # ---------------- WEBSOCKET GOODBYE CALLBACK ----------
+    def shutdown_gracefully(self):
+        """Sendet Goodbye an alle Nachbarn und beendet den Socket ordnungsgemäß"""
+        if self.shutdown_event.is_set():
+            return  # Bereits im Shutdown-Prozess
+
+        self.shutdown_event.set()
+
+        print("\n[INFO] Sende Goodbye an alle Nachbarn...")
+        neighbors = self.neighbor_table.get_alive_neighbors()
+
+        for entry in neighbors:
+            dest_ip = entry.ip
+            dest_port = entry.port
+            send_goodbye_handler.send_goodbye(
+                self,
+                self.get_seq_num(),
+                dest_ip,
+                dest_port,
+                self.my_ip_str,
+                self.my_port
+            )
+            print(f"[GOODBYE] Gesendet an {dest_ip}:{dest_port}")
+
+        # Wartezeit damit Goodbye-Pakete gesendet werden
+        time.sleep(1.5)
+
+        # Socket schließen
+        try:
+            self.sock.close()
+            print("[INFO] Socket geschlossen")
+        except Exception as e:
+            print(f"[ERROR] Beim Schließen: {e}")
+
+        # Prozess hart beenden (funktioniert auch mit Threads)
+        print("[INFO] Beende Anwendung...")
+        import os
+        os._exit(0)
 
 
 
