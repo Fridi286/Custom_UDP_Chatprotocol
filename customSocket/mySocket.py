@@ -23,7 +23,8 @@ from customSocket.send_handlers import send_msg_handler, send_file_handler, send
     send_heartbeat_handler, \
     send_hello_handler, send_routing_update_handler, send_goodbye_handler
 # In mySocket.py nach den Imports hinzufügen:
-from customSocket.websocket_server import notify_file_complete, notify_file_sent
+from customSocket.websocket_server import notify_file_complete, notify_file_sent, notify_message_received, \
+    notify_file_received
 from . import config
 
 
@@ -42,102 +43,81 @@ class MySocket:
 
         self.sock = socket(AF_INET, SOCK_DGRAM)
         self.sock.bind((host, port))
-        # WICHTIG: Buffer erhöhen um Packet Loss bei Bursts zu verhindern
+
+        # Puffer-Einstellungen (wie zuvor besprochen)
         try:
-            # Empfangs-Buffer auf 8 MB setzen (verhindert Überlauf bei eingehendem File-Transfer)
             self.sock.setsockopt(SOL_SOCKET, SO_RCVBUF, 8 * 1024 * 1024)
-            # Sende-Buffer auf 4 MB setzen
             self.sock.setsockopt(SOL_SOCKET, SO_SNDBUF, 4 * 1024 * 1024)
-            print("[INFO] Socket Buffer erfolgreich erhöht (RCV: 8MB, SND: 4MB)")
+            print("[INFO] Socket Buffer: RCV 8MB, SND 4MB")
         except Exception as e:
-            print(f"[ERROR] Konnte Socket Buffer nicht setzen: {e}")
+            print(f"[WARN] Buffersize konnte nicht gesetzt werden: {e}")
 
         print(f"\n[INFO] Listening on {my_ip_str}:{my_port}\n")
 
-        # WebSocket Callbacks registrieren
         self.websocket_callback = None
-
-        # self.send_queue = Queue() #OLD
         self.send_queue = SimpleQueue()
 
-        # queues for all incomming msgs
-        self.all_incoming = queue.Queue(maxsize=20000)
-        self.routing_incoming = queue.Queue(maxsize=10000)
-        self.my_incoming = queue.Queue(maxsize=10000)
+        # OPTIMIERUNG: 'all_incoming' entfernt. Wir dispatchen direkt.
+        # self.all_incoming = queue.Queue(maxsize=20000)
+
+        # ALT:
+        # self.routing_incoming = queue.Queue(maxsize=10000)
+        # self.my_incoming = queue.Queue(maxsize=10000)
+
+        # NEU:
+        self.routing_incoming = queue.SimpleQueue()
+        self.my_incoming = queue.SimpleQueue()
 
         # storage for acks and noacks
         self.ack_store = AckStore()
         self.noack_store = NoAckStore()
 
-        # storage for all files that the user receives
+        # storage for all files
         self.file_store = FileStore(
-            on_frame_complete=self.send_ack_frame,  #Callback function
-            on_frame_timeout=self.send_noack_frame,  #Callback function
+            on_frame_complete=self.send_ack_frame,
+            on_frame_timeout=self.send_noack_frame,
             mySocket=self,
             on_file_complete=self.on_file_complete,
         )
 
-        # Sequence Number Producer
         self.seq_counter = 1
         self.seq_lock = threading.Lock()
         self.takenSeqNum = set()
 
-        # Routing Logic
         self.routing_table = RoutingTable()
         self.neighbor_table = NextNeighborTable()
 
-        # Hello Logic - After giving Hello IP/Ports Code, socket will run
         self.handel_hello()
 
-        # Garbage Collector and File Assembler
-        #file_cleaner = threading.Thread(target=self.file_store.cleanup_stale_files, daemon=True)
-        #file_cleaner.start()
-
-        # Neighbor Monitoring Thread starten
-        neighbor_monitor = NeighborMonitor(
-            self.neighbor_table,
-            self.routing_table,
-            on_routing_update=self.send_routing_update,  #Callback function
-        )
+        # Threading Starts
+        neighbor_monitor = NeighborMonitor(self.neighbor_table, self.routing_table, self.send_routing_update)
         neighbor_monitor.start()
 
-        # Routing Table Monitor starten (überwacht poisoned routes)
-        routing_monitor = RoutingTableMonitor(
-            self.routing_table,
-            on_routing_update=self.send_routing_update  #Callback function
-        )
+        routing_monitor = RoutingTableMonitor(self.routing_table, self.send_routing_update)
         routing_monitor.start()
 
-        # Heartbeat starten
-        heartbeat = threading.Thread(target=self.send_heartbeats, daemon=True)
-        heartbeat.start()
+        threading.Thread(target=self.send_heartbeats, daemon=True).start()
 
         # Listener Thread starten
         threading.Thread(target=self.listen, daemon=True).start()
 
-        # Incoming Handler starten
-        threading.Thread(target=self.handel_incoming, daemon=True).start()
+        # OPTIMIERUNG: 'handel_incoming' Thread entfernt
+        # threading.Thread(target=self.handel_incoming, daemon=True).start()
+
         threading.Thread(target=self.handel_my_incoming, daemon=True).start()
         threading.Thread(target=self.handel_routing_incoming, daemon=True).start()
 
-        # Send Loop Threads starten
         for _ in range(2):
             threading.Thread(target=self.send_loop, daemon=True).start()
 
-        # Sender Thread starten
-        send_thread = threading.Thread(target=self.send_message, daemon=True)
-        send_thread.start()
+        threading.Thread(target=self.send_message, daemon=True).start()
 
-
-        # Signal-Handler registrieren
         signal.signal(signal.SIGINT, self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
 
-        # Websocket mit Callback-Registrierung
-        from customSocket.websocket_server import init_websocket_server, notify_message_received, notify_file_received
+        from customSocket.websocket_server import init_websocket_server
         init_websocket_server(self)
 
-        # Shutdown Event für ordnungsgemäßes Beenden
         self.shutdown_event = threading.Event()
 
         # Callback-Funktion definieren
@@ -161,25 +141,48 @@ class MySocket:
 # =====================================================================================================================
 
     def listen(self):
+        """
+        OPTIMIZED LISTEN:
+        Liest vom Socket und entscheidet sofort anhand der Raw-Bytes,
+        ob das Paket für uns ist oder geroutet werden muss.
+        """
+        # Lokale Referenzen für Speed im Loop
+        sock_recv = self.sock.recvfrom
+        my_in_put = self.my_incoming.put
+        route_in_put = self.routing_incoming.put
+        my_ip_bytes = self.my_ip_bytes
+        packet_size = config.PACKET_SIZE_BYTES + 200  # Etwas Buffer
+
+        print("[INFO] High-Performance Dispatch Listener started")
 
         while True:
             try:
-                data, addr = self.sock.recvfrom(8096)
-                self.all_incoming.put(data)
+                data, addr = sock_recv(packet_size)
+
+                # Check Header: Type[0], Seq[1-5], DestIP[5-9]
+                # Wenn Paket kaputt oder zu kurz -> ignorieren
+                if len(data) < 9:
+                    continue
+
+                # Schneller Byte-Vergleich der Destination IP (Bytes 5 bis 9)
+                dest_ip_slice = data[5:9]
+
+                if dest_ip_slice == my_ip_bytes:
+                    # Paket ist für mich -> direkt in my_incoming
+                    my_in_put((data, addr))
+                else:
+                    # Paket ist für jemand anderen -> Routing
+                    route_in_put((data, addr))
+
             except Exception as e:
-                print(e)
+                # Bei Socket-Shutdown oder Fehlern
+                if self.shutdown_event.is_set():
+                    break
+                print(f"[ERROR] Listen Loop: {e}")
 
-
-    # -------- Handels all incoming data and structures --------------
-    def handel_incoming(self):
-        queue_get = self.all_incoming.get
-        while True:
-            data = queue_get()
-            if data[5: 9] == self.my_ip_bytes and data[13: 15] == self.my_port_bytes:
-
-                self.my_incoming.put(data)
-            else:
-                self.routing_incoming.put(data)
+    # OPTIMIERUNG: Diese Funktion wird nicht mehr benötigt
+    # def handel_incoming(self):
+    #     pass
 
     # ---------- Handels data that is adressed to you ------------------
     HANDLERS = {
@@ -193,12 +196,25 @@ class MySocket:
         8: personal_recv_handler.handle_heartbeat,
         9: personal_recv_handler.handle_routing_update,
     }
+
     def handel_my_incoming(self):
         queue_get = self.my_incoming.get
+        # Header Parsing Optimierung: Wir vertrauen darauf, dass listen() vorsortiert hat
+
         while True:
-            data = queue_get()
-            msgType = int.from_bytes(data[0:1], "big")
-            self.HANDLERS[msgType](self, data, on_routing_update=self.send_routing_update)
+            data, addr = queue_get()
+
+            try:
+                # Type ist das erste Byte
+                msg_type = data[0]
+
+                handler = self.HANDLERS.get(msg_type)
+                if handler:
+                    handler(self, data, self.send_routing_update)
+                else:
+                    print(f"Unknown Message Type for me: {msg_type}")
+            except Exception as e:
+                print(f"[ERROR] Handling packet: {e}")
 
     # ---------- Handels data which is not for you and needs routing ---
     def handel_routing_incoming(self):

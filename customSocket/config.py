@@ -10,7 +10,7 @@ WAIT_FOR_ACK_TIME = 5           # Zeit die wir bei MSG oder File_Info auf ein AC
 
 HEARTBEAT_TIMER = 3             # Wie oft wir heartbeats senden
 
-MAX_BANDWIDTH_BYTES = 1_000_000   # 1 MByte pro Sekunde erlaubt
+MAX_BANDWIDTH_BYTES = 50_000_000
 PACKET_SIZE_BYTES = 1500          # ungefähre Größe pro Paket
 
 MAX_PPS = MAX_BANDWIDTH_BYTES // PACKET_SIZE_BYTES #ca
