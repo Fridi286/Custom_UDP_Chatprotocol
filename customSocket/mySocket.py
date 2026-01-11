@@ -9,6 +9,8 @@ from queue import SimpleQueue
 from socket import socket, AF_INET, SOCK_DGRAM
 from typing import Tuple
 
+from _socket import SOL_SOCKET, SO_RCVBUF, SO_SNDBUF
+
 from customSocket.helpers.ack_store import AckStore
 from customSocket.helpers.file_store import FileStore
 from customSocket.helpers.noack_store import NoAckStore
@@ -40,8 +42,17 @@ class MySocket:
 
         self.sock = socket(AF_INET, SOCK_DGRAM)
         self.sock.bind((host, port))
+        # WICHTIG: Buffer erhöhen um Packet Loss bei Bursts zu verhindern
+        try:
+            # Empfangs-Buffer auf 8 MB setzen (verhindert Überlauf bei eingehendem File-Transfer)
+            self.sock.setsockopt(SOL_SOCKET, SO_RCVBUF, 8 * 1024 * 1024)
+            # Sende-Buffer auf 4 MB setzen
+            self.sock.setsockopt(SOL_SOCKET, SO_SNDBUF, 4 * 1024 * 1024)
+            print("[INFO] Socket Buffer erfolgreich erhöht (RCV: 8MB, SND: 4MB)")
+        except Exception as e:
+            print(f"[ERROR] Konnte Socket Buffer nicht setzen: {e}")
+
         print(f"\n[INFO] Listening on {my_ip_str}:{my_port}\n")
-        #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 * 1024 * 1024)
 
         # WebSocket Callbacks registrieren
         self.websocket_callback = None

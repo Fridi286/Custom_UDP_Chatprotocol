@@ -29,7 +29,7 @@ def main():
 
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
-    ip = "10.8.3.7"
+    ip = "10.8.3.2"
 
 
     if platform.system() == "Windows":
@@ -42,7 +42,7 @@ def main():
         print("Running on macOS")
 
 
-    for i in range(3000, 3004):
+    for i in range(3000, 3002):
         port_number = i
         title = f"Socket: {ip}/{port_number}"
         open_terminal(f'{VENV_PYTHON} -m customSocket.mySocket {ip} {port_number}', title)
